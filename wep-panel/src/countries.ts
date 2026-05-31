@@ -1,0 +1,15 @@
+export const COUNTRIES: { code: string; dial: string; flag: string; name: string }[] = [
+  { code: 'AZ', dial: '+994', flag: '🇦🇿', name: 'Azərbaycan' },
+  { code: 'TR', dial: '+90',  flag: '🇹🇷', name: 'Türkiyə' },
+  { code: 'RU', dial: '+7',   flag: '🇷🇺', name: 'Rusiya' },
+  { code: 'US', dial: '+1',   flag: '🇺🇸', name: 'ABŞ' },
+  { code: 'GB', dial: '+44',  flag: '🇬🇧', name: 'Böyük Britaniya' },
+  { code: 'DE', dial: '+49',  flag: '🇩🇪', name: 'Almaniya' },
+  { code: 'FR', dial: '+33',  flag: '🇫🇷', name: 'Fransa' },
+  { code: 'UA', dial: '+380', flag: '🇺🇦', name: 'Ukrayna' },
+  { code: 'GE', dial: '+995', flag: '🇬🇪', name: 'Gürcüstan' },
+  { code: 'KZ', dial: '+7',   flag: '🇰🇿', name: 'Qazaxıstan' },
+  { code: 'IR', dial: '+98',  flag: '🇮🇷', name: 'İran' },
+  { code: 'AE', dial: '+971', flag: '🇦🇪', name: 'BƏƏ' },
+  { code: 'IN', dial: '+91',  flag: '🇮🇳', name: 'Hindistan' },
+]
