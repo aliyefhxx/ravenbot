@@ -17,14 +17,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Userbot
+      - name: Build & Push Userbot
         uses: docker/build-push-action@v5
         with:
           context: ./userbot
           push: true
           tags: ryhavean/userbot:latest
 
-      - name: Build Web Panel
+      - name: Build & Push Web Panel
         uses: docker/build-push-action@v5
         with:
           context: ./web-panel
