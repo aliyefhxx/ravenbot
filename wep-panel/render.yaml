@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ryhavean-panel
+    runtime: node
+    rootDir: web-panel
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: USERBOT_IMAGE
+        value: ryhavean/userbot:latest
