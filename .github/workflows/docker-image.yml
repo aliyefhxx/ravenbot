@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: production   # ⚠️ BURASI SƏNİN ENV ADIN OLMALIDIR
 
     steps:
       - uses: actions/checkout@v4
