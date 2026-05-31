@@ -8,6 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # 🔴 BU ÇOX VACİBDİR (Environment secrets üçün)
+    environment: production
+
     steps:
       - uses: actions/checkout@v4
 
