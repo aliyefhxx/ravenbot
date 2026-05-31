@@ -22,11 +22,11 @@ jobs:
         with:
           context: ./userbot
           push: true
-          tags: ryhavean/userbot:latest
+          tags: raven/userbot:latest
 
       - name: Build & Push Web Panel
         uses: docker/build-push-action@v5
         with:
           context: ./web-panel
           push: true
-          tags: ryhavean/web-panel:latest
+          tags: raven/web-panel:latest
