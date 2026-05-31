@@ -7,9 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    # 🔴 BURANI MÜTLƏQ DOĞRU YAZ
-    environment: production
+    environment: production   # ⚠️ BURASI SƏNİN ENV ADIN OLMALIDIR
 
     steps:
       - uses: actions/checkout@v4
@@ -19,11 +17,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Debug (TEMP)
-        run: |
-          echo "USER: ${{ secrets.DOCKERHUB_USERNAME }}"
-          echo "TOKEN length: ${#DOCKERHUB_TOKEN}"
 
       - name: Build & Push Userbot
         uses: docker/build-push-action@v5
