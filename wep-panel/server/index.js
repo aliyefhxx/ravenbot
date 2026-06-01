@@ -4,7 +4,7 @@ import express from 'express'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { TelegramClient } from 'telegram'
+import { TelegramClient, Api } from 'telegram'
 import { StringSession } from 'telegram/sessions/index.js'
 import axios from 'axios'
 import crypto from 'crypto'
@@ -38,9 +38,9 @@ app.post('/api/send-code', async (req, res) => {
   try {
     const { apiId, apiHash, phone } = req.body
     if (!apiId || !apiHash || !phone) return res.status(400).json({ error: 'apiId, apiHash, phone tələb olunur' })
-    const client = new TelegramClient(new StringSession(''), apiId, apiHash, { connectionRetries: 3 })
+    const client = new TelegramClient(new StringSession(''), Number(apiId), String(apiHash), { connectionRetries: 3 })
     await client.connect()
-    const { phoneCodeHash } = await client.sendCode({ apiId, apiHash }, phone)
+    const { phoneCodeHash } = await client.sendCode({ apiId: Number(apiId), apiHash: String(apiHash) }, phone)
     sessions.set(phone, { client, phoneCodeHash })
     res.json({ phoneCodeHash })
   } catch (e) {
@@ -56,10 +56,17 @@ app.post('/api/verify-code', async (req, res) => {
     const entry = sessions.get(phone)
     if (!entry) return res.status(400).json({ error: 'Sesya tapılmadı, kodu yenidən göndərin' })
     const { client } = entry
+    const codeHash = phoneCodeHash || entry.phoneCodeHash
+
     try {
-      await client.invoke({
-        _: 'auth.signIn', phoneNumber: phone, phoneCodeHash, phoneCode: code,
-      })
+      // DÜZGÜN: GramJS-də invoke yalnız əsl TL Request obyekti qəbul edir
+      await client.invoke(
+        new Api.auth.SignIn({
+          phoneNumber: phone,
+          phoneCodeHash: codeHash,
+          phoneCode: code,
+        })
+      )
     } catch (e) {
       if (e.errorMessage === 'SESSION_PASSWORD_NEEDED') {
         if (!password) return res.json({ twoFa: true })
@@ -69,6 +76,7 @@ app.post('/api/verify-code', async (req, res) => {
         )
       } else { throw e }
     }
+
     const sessionStr = client.session.save()
     const encrypted = encrypt(sessionStr)
     sessions.delete(phone)
