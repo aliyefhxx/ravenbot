@@ -1,116 +1,147 @@
-# userbot/main.py — Tam hazır versiya
-
-import os
-import logging
+"""Ryhavean Userbot - Render Web Service (7/24 self-ping)"""
 import asyncio
-from pyrogram import Client, filters, idle
-from pyrogram.enums import ParseMode
+import logging
+import os
+import sys
+from contextlib import asynccontextmanager
 
-# === Monkey-patch: Bütün mesajları avtomatik qalın (bold) et ===
-_original_send_message = Client.send_message
-_original_edit_message_text = Client.edit_message_text
-_original_edit_message_caption = Client.edit_message_caption
+import httpx
+from fastapi import FastAPI
+import uvicorn
+from telethon import TelegramClient
+from telethon.sessions import StringSession
 
-_original_send_photo = Client.send_photo
-_original_send_document = Client.send_document
-_original_send_video = Client.send_video
-_original_send_audio = Client.send_audio
-_original_send_animation = Client.send_animation
-_original_send_voice = Client.send_voice
+from config import Config
+import db, ratelimit, plugin_loader, commands, security
 
-def _make_bold(text: str) -> str:
-    if not text or not text.strip():
-        return text
-    text = text.strip()
-    if text.startswith("<b>") and text.endswith("</b>"):
-        return text
-    if text.startswith("```") or text.startswith("<code"):
-        return text
-    return f"<b>{text}</b>"
-
-async def _patched_send_message(self, chat_id, text, **kwargs):
-    kwargs["parse_mode"] = ParseMode.HTML
-    if text:
-        text = _make_bold(str(text))
-    return await _original_send_message(self, chat_id, text, **kwargs)
-
-async def _patched_edit_message_text(self, chat_id, message_id, text, **kwargs):
-    kwargs["parse_mode"] = ParseMode.HTML
-    if text:
-        text = _make_bold(str(text))
-    return await _original_edit_message_text(self, chat_id, message_id, text, **kwargs)
-
-async def _patched_edit_message_caption(self, chat_id, message_id, caption, **kwargs):
-    kwargs["parse_mode"] = ParseMode.HTML
-    if caption:
-        caption = _make_bold(str(caption))
-    return await _original_edit_message_caption(self, chat_id, message_id, caption, **kwargs)
-
-async def _patched_send_media(self, original, chat_id, **kwargs):
-    kwargs["parse_mode"] = ParseMode.HTML
-    if kwargs.get("caption"):
-        kwargs["caption"] = _make_bold(str(kwargs["caption"]))
-    return await original(self, chat_id, **kwargs)
-
-def apply_bold_patch():
-    Client.send_message = _patched_send_message
-    Client.edit_message_text = _patched_edit_message_text
-    Client.edit_message_caption = _patched_edit_message_caption
-    Client.send_photo = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_photo, self, chat_id, **kwargs)
-    Client.send_document = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_document, self, chat_id, **kwargs)
-    Client.send_video = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_video, self, chat_id, **kwargs)
-    Client.send_audio = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_audio, self, chat_id, **kwargs)
-    Client.send_animation = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_animation, self, chat_id, **kwargs)
-    Client.send_voice = lambda self, chat_id, **kwargs: _patched_send_media(_original_send_voice, self, chat_id, **kwargs)
-
-# ==============================================================
-
-# Redis import (əgər varsa)
-try:
-    from .helpers import ratelimit
-    HAS_REDIS = True
-except ImportError:
-    HAS_REDIS = False
-
-# Logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("userbot")
+log = logging.getLogger("ryhavean")
 
-# Env dəyişənləri
-API_ID = int(os.environ.get("API_ID", "0"))
-API_HASH = os.environ.get("API_HASH", "")
-STRING_SESSION = os.environ.get("STRING_SESSION", "")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+tg_client: TelegramClient | None = None
 
-PLUGINS = dict(root="userbot/plugins")
+
+def get_session_string() -> str:
+    raw = Config.SESSION_STRING
+    if not raw:
+        log.critical("SESSION_STRING env yoxdur")
+        sys.exit(1)
+    if raw.startswith("enc:"):
+        try:
+            return security.decrypt(raw[4:])
+        except Exception as e:
+            log.critical("Session deşifrə xətası: %s", e)
+            sys.exit(1)
+    return raw
+
+
+async def post_restart_notice(client):
+    chat = await db.get_setting("restart_chat")
+    mid = await db.get_setting("restart_msg")
+    if chat and mid:
+        try:
+            await client.edit_message(int(chat), int(mid), "✅ <b>Restart tamamlandı</b>", parse_mode="html")
+        except Exception:
+            pass
+        await db.set_setting("restart_chat", "")
+        await db.set_setting("restart_msg", "")
+
 
 async def start_userbot():
-    apply_bold_patch()  # ← Monkey-patch burada tətbiq olunur
+    global tg_client
+    log.info("🚀 Ryhavean Userbot başladılır...")
+    await db.init_db()
+    await ratelimit.init_redis()
 
-    if HAS_REDIS:
-        try:
-            await ratelimit.init_redis()
-            logger.info("Redis initialized")
-        except Exception as e:
-            logger.warning(f"Redis not available: {e}")
-
-    client = Client(
-        name="ravenbot",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        session_string=STRING_SESSION or None,
-        bot_token=BOT_TOKEN or None,
-        plugins=PLUGINS,
-        parse_mode=ParseMode.HTML,
+    tg_client = TelegramClient(
+        StringSession(get_session_string()),
+        Config.API_ID,
+        Config.API_HASH,
+        device_model="Ryhavean Userbot",
+        system_version="1.0.0",
+        app_version="1.0.0",
     )
+    await tg_client.start()
+    me = await tg_client.get_me()
+    log.info("✅ Daxil oldu: %s (@%s) id=%s", me.first_name, me.username, me.id)
 
-    await client.start()
-    logger.info("Userbot started! 7/24 aktiv.")
-    await idle()
-    await client.stop()
+    commands.register(tg_client)
+    await plugin_loader.load_all(tg_client)
+    await post_restart_notice(tg_client)
+
+    try:
+        await tg_client.send_message("me", "✨ <b>Ryhavean Userbot uğurla aktiv edildi.</b>", parse_mode="html")
+    except Exception:
+        pass
+
+    log.info("🟢 Userbot işləyir. Komandalar üçün .help yazın.")
+    await tg_client.run_until_disconnected()
+
+
+async def _userbot_runner():
+    try:
+        await start_userbot()
+    except Exception:
+        log.exception("Userbot kritik xəta - prosess restart")
+        os._exit(1)
+
+
+async def _self_ping_loop():
+    """
+    Render Free planında 15 dəq inaktivlikdən sonra service yuxuya gedir.
+    Hər 10 dəqiqədən bir öz URL-ni ping edirik ki, həmişə oyaq qalsın.
+    """
+    # Render avtomatik olaraq RENDER_EXTERNAL_URL env-i təyin edir
+    url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("SELF_URL")
+    if not url:
+        log.warning("⚠️ RENDER_EXTERNAL_URL tapılmadı — self-ping deaktivdir")
+        return
+
+    ping_url = url.rstrip("/") + "/health"
+    log.info("🔁 Self-ping aktivdir: %s (hər 10 dəq)", ping_url)
+
+    # İlk ping-i 60 sandyə sonra
+    await asyncio.sleep(60)
+
+    async with httpx.AsyncClient(timeout=15.0) as http:
+        while True:
+            try:
+                r = await http.get(ping_url)
+                log.info("🔁 Self-ping: %s", r.status_code)
+            except Exception as e:
+                log.warning("Self-ping xətası: %s", e)
+            await asyncio.sleep(600)  # 10 dəqiqə
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    userbot_task = asyncio.create_task(_userbot_runner())
+    ping_task = asyncio.create_task(_self_ping_loop())
+    yield
+    ping_task.cancel()
+    userbot_task.cancel()
+    if tg_client and tg_client.is_connected():
+        await tg_client.disconnect()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+async def root():
+    connected = tg_client.is_connected() if tg_client else False
+    return {"status": "ok", "userbot_connected": connected}
+
+
+@app.get("/health")
+async def health():
+    if tg_client and tg_client.is_connected():
+        return {"status": "healthy"}
+    return {"status": "starting"}
+
 
 if __name__ == "__main__":
-    asyncio.run(start_userbot())
+    port = int(os.getenv("PORT", "10000"))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
