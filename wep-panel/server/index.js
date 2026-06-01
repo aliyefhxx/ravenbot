@@ -16,13 +16,17 @@ app.use(cors())
 app.use(express.json({ limit: '512kb' }))
 
 const sessions = new Map() // phone -> { client, phoneCodeHash }
+
+// DÜZƏLİŞ: açarın uzunluğu nə olursa olsun, SHA-256 ilə HƏMİŞƏ 32 bayta çevrilir.
+// Bu, "Invalid key length" xətasını tamamilə aradan qaldırır.
 const ENC_KEY = (() => {
   const k = process.env.ENCRYPTION_KEY
   if (!k) {
     console.warn('⚠️  ENCRYPTION_KEY env yoxdur - random yaradılır (yenidən başlatma session-ları sıfırlayacaq)')
     return crypto.randomBytes(32)
   }
-  return Buffer.from(k, 'base64url')
+  // İstənilən mətn/base64 dəyərini sabit 32 baytlıq açara çevir
+  return crypto.createHash('sha256').update(String(k)).digest()
 })()
 
 function encrypt(text) {
