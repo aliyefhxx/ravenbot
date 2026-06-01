@@ -12,5 +12,4 @@ speedtest-cli
 # voice_studio plugin üçün
 edge-tts==6.1.12
 yt-dlp==2024.10.7
-py-tgcalls==2.2.12
-
+py-tgcalls==2.0.6
