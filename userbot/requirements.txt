@@ -8,3 +8,8 @@ python-dotenv==1.0.1
 httpx==0.27.2
 pydantic==2.9.2
 speedtest-cli
+
+# voice_studio plugin üçün
+edge-tts==6.1.12
+yt-dlp==2024.10.7
+py-tgcalls==2.0.7
