@@ -1,10 +1,11 @@
-"""Ryhavean Userbot - Render Web Service giriş nöqtəsi"""
+"""Ryhavean Userbot - Render Web Service (7/24 self-ping)"""
 import asyncio
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 import uvicorn
 from telethon import TelegramClient
@@ -19,7 +20,6 @@ logging.basicConfig(
 )
 log = logging.getLogger("ryhavean")
 
-# Qlobal client referansı (health endpoint üçün)
 tg_client: TelegramClient | None = None
 
 
@@ -50,7 +50,6 @@ async def post_restart_notice(client):
 
 
 async def start_userbot():
-    """Userbot-u başlat və disconnect olana qədər işlət."""
     global tg_client
     log.info("🚀 Ryhavean Userbot başladılır...")
     await db.init_db()
@@ -81,24 +80,50 @@ async def start_userbot():
     await tg_client.run_until_disconnected()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # FastAPI start olanda userbot-u arxa fonda başlat
-    task = asyncio.create_task(_runner())
-    yield
-    # Shutdown
-    task.cancel()
-    if tg_client and tg_client.is_connected():
-        await tg_client.disconnect()
-
-
-async def _runner():
+async def _userbot_runner():
     try:
         await start_userbot()
     except Exception:
-        log.exception("Userbot kritik xəta - prosess restart ediləcək")
-        # Render avtomatik restart edəcək
+        log.exception("Userbot kritik xəta - prosess restart")
         os._exit(1)
+
+
+async def _self_ping_loop():
+    """
+    Render Free planında 15 dəq inaktivlikdən sonra service yuxuya gedir.
+    Hər 10 dəqiqədən bir öz URL-ni ping edirik ki, həmişə oyaq qalsın.
+    """
+    # Render avtomatik olaraq RENDER_EXTERNAL_URL env-i təyin edir
+    url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("SELF_URL")
+    if not url:
+        log.warning("⚠️ RENDER_EXTERNAL_URL tapılmadı — self-ping deaktivdir")
+        return
+
+    ping_url = url.rstrip("/") + "/health"
+    log.info("🔁 Self-ping aktivdir: %s (hər 10 dəq)", ping_url)
+
+    # İlk ping-i 60 sandyə sonra
+    await asyncio.sleep(60)
+
+    async with httpx.AsyncClient(timeout=15.0) as http:
+        while True:
+            try:
+                r = await http.get(ping_url)
+                log.info("🔁 Self-ping: %s", r.status_code)
+            except Exception as e:
+                log.warning("Self-ping xətası: %s", e)
+            await asyncio.sleep(600)  # 10 dəqiqə
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    userbot_task = asyncio.create_task(_userbot_runner())
+    ping_task = asyncio.create_task(_self_ping_loop())
+    yield
+    ping_task.cancel()
+    userbot_task.cancel()
+    if tg_client and tg_client.is_connected():
+        await tg_client.disconnect()
 
 
 app = FastAPI(lifespan=lifespan)
