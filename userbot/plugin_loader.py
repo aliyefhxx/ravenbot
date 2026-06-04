@@ -4,6 +4,7 @@ import sys
 import traceback
 import logging
 import re
+import asyncio
 from pathlib import Path
 from security import analyze_plugin
 from db import pool
@@ -14,7 +15,6 @@ PLUGIN_DIR.mkdir(exist_ok=True)
 
 loaded: dict[str, object] = {}
 
-# Kodu təmizləyən və client-ə uyğunlaşdıran funksiya
 def preprocess_code(code: str) -> str:
     code = re.sub(r'from userbot\..* import .*\n', '', code)
     code = re.sub(r'from userbot import .*\n', '', code)
@@ -24,7 +24,6 @@ def preprocess_code(code: str) -> str:
     code = code.replace("brend", "event")
     return code
 
-# Pluginin içindən bütün mümkün komanda strukturlarını tapırıq
 def extract_commands(code: str) -> str:
     matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
     if not matches:
@@ -35,13 +34,10 @@ def extract_commands(code: str) -> str:
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
-    # 1. İlkin "Yoxlanılır" mesajı
     msg = await client.send_message("me", "⏳ <b>Plugin yoxlanılır...</b>", parse_mode="html")
     
-    # 2. Kodun təmizlənməsi
     processed_code = preprocess_code(code)
     
-    # 3. Təhlükəsizlik yoxlanışı
     safe, reason = analyze_plugin(processed_code)
     if not safe:
         await msg.edit(f"❌ <b>Təhlükəsizlik xətası:</b> {reason}", parse_mode="html")
@@ -50,15 +46,14 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
     
-    # 4. Yükləmə prosesi
     try:
-        await _load_one(path, client)
+        # install zamanı notify=True olacaq
+        await _load_one(path, client, notify=True)
     except Exception as e:
         path.unlink(missing_ok=True)
         await msg.edit(f"❌ <b>Yükləmə xətası:</b> {e}", parse_mode="html")
         return False, str(e)
     
-    # 5. Komandaları tapırıq və mesajı edit edirik
     commands = extract_commands(processed_code)
     notification = (
         f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
@@ -67,7 +62,6 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     )
     await msg.edit(notification, parse_mode="html")
     
-    # 6. Bazaya əlavə
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
@@ -86,10 +80,10 @@ async def uninstall_plugin(name: str) -> tuple[bool, str]:
         await c.execute("DELETE FROM plugins WHERE name=$1", name)
     return True, f"🗑 <b>{name}</b> plugini silindi"
 
-async def _load_one(path: Path, client):
+async def _load_one(path: Path, client, notify=False):
     name = path.stem
     spec = importlib.util.spec_from_file_location(f"plugins.{name}", path)
-    mod = importlib.util.module_from_spec(spec)
+    mod = importlib.module_from_spec(spec)
     mod.client = client
     from telethon import events
     mod.events = events
@@ -100,10 +94,11 @@ async def _load_one(path: Path, client):
     except Exception:
         err = traceback.format_exc()
         log.error("Plugin xətası %s: %s", name, err)
-        try:
-            await client.send_message("me", f"⚠️ Plugin xətası <b>{name}</b>:\n<code>{err[:3000]}</code>", parse_mode="html")
-        except Exception:
-            pass
+        if notify:
+            try:
+                await client.send_message("me", f"⚠️ Plugin xətası <b>{name}</b>:\n<code>{err[:3000]}</code>", parse_mode="html")
+            except Exception:
+                pass
 
 async def load_all(client):
     async with pool().acquire() as c:
@@ -114,4 +109,5 @@ async def load_all(client):
     for p in PLUGIN_DIR.glob("*.py"):
         if p.name.startswith("_"):
             continue
-        await _load_one(p, client)
+        # Bot açılanda notify=False göndəririk ki, spam mesajlar getməsin
+        await _load_one(p, client, notify=False)
