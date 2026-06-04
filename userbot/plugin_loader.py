@@ -14,6 +14,7 @@ PLUGIN_DIR.mkdir(exist_ok=True)
 
 loaded: dict[str, object] = {}
 
+# Kodu təmizləyən və client-ə uyğunlaşdıran funksiya
 def preprocess_code(code: str) -> str:
     code = re.sub(r'from userbot\..* import .*\n', '', code)
     code = re.sub(r'from userbot import .*\n', '', code)
@@ -23,6 +24,7 @@ def preprocess_code(code: str) -> str:
     code = code.replace("brend", "event")
     return code
 
+# Pluginin içindən bütün mümkün komanda strukturlarını tapırıq
 def extract_commands(code: str) -> str:
     matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
     if not matches:
@@ -33,37 +35,44 @@ def extract_commands(code: str) -> str:
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
+    # 1. İlkin "Yoxlanılır" mesajı
+    msg = await client.send_message("me", "⏳ <b>Plugin yoxlanılır...</b>", parse_mode="html")
+    
+    # 2. Kodun təmizlənməsi
     processed_code = preprocess_code(code)
     
+    # 3. Təhlükəsizlik yoxlanışı
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        return False, f"❌ Təhlükəsizlik: {reason}"
+        await msg.edit(f"❌ <b>Təhlükəsizlik xətası:</b> {reason}", parse_mode="html")
+        return False, reason
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
     
+    # 4. Yükləmə prosesi
     try:
         await _load_one(path, client)
     except Exception as e:
         path.unlink(missing_ok=True)
-        return False, f"❌ Yükləmə xətası: {e}"
+        await msg.edit(f"❌ <b>Yükləmə xətası:</b> {e}", parse_mode="html")
+        return False, str(e)
     
+    # 5. Komandaları tapırıq və mesajı edit edirik
     commands = extract_commands(processed_code)
-    
-    # Tək mesaj formatı
     notification = (
         f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
         "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
         f"ℹ️ <b>Info:</b> {commands}"
     )
-    await client.send_message("me", notification, parse_mode="html")
+    await msg.edit(notification, parse_mode="html")
     
+    # 6. Bazaya əlavə
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    # Mesaj göndərildiyi üçün buradan sadəcə True qaytarırıq (artıq mesajsız)
     return True, ""
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
