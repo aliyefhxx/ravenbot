@@ -25,48 +25,54 @@ def preprocess_code(code: str) -> str:
     return code
 
 def extract_commands(code: str) -> str:
-    matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
-    if not matches:
-        matches = re.findall(r'pattern="\^\.([\w]+)', code)
+    patterns = [
+        r'pattern=r"\^\\\.([\w]+)"',
+        r'pattern="\^\.([\w]+)"',
+        r'pattern=r"\.([\w]+)"',
+        r'pattern="\.\.([\w]+)"'
+    ]
+    
+    matches = []
+    for p in patterns:
+        matches.extend(re.findall(p, code))
+        
     if not matches:
         return "Komanda tapılmadı"
+    
     unique_matches = sorted(list(set(matches)))
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
-    # 1. İlk mesajı göndəririk və dəyişənə alırıq
-    msg = await client.send_message("me", "⏳ <b>Plugin yoxlanılır...</b>", parse_mode="html")
-    
-    # 2. Kodun təmizlənməsi
+    # 1. Kodun təmizlənməsi
     processed_code = preprocess_code(code)
     
-    # 3. Təhlükəsizlik yoxlanışı
+    # 2. Təhlükəsizlik yoxlanışı
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        await msg.edit(f"❌ <b>Təhlükəsizlik xətası:</b> {reason}", parse_mode="html")
+        await client.send_message("me", f"❌ <b>Təhlükəsizlik xətası:</b> {reason}", parse_mode="html")
         return False, reason
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
     
-    # 4. Yükləmə prosesi (notify=False, çünki artıq mesajımız var)
+    # 3. Yükləmə prosesi
     try:
         await _load_one(path, client, notify=False)
     except Exception as e:
         path.unlink(missing_ok=True)
-        await msg.edit(f"❌ <b>Yükləmə xətası:</b> {e}", parse_mode="html")
+        await client.send_message("me", f"❌ <b>Yükləmə xətası:</b> {e}", parse_mode="html")
         return False, str(e)
     
-    # 5. Mesajı edit edərək yekun nəticəni yazırıq
+    # 4. Yekun mesajı göndəririk (artıq yoxlanılır yazısı olmadan)
     commands = extract_commands(processed_code)
     notification = (
         f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
         "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
         f"ℹ️ <b>Info:</b> {commands}"
     )
-    await msg.edit(notification, parse_mode="html")
+    await client.send_message("me", notification, parse_mode="html")
     
-    # 6. Bazaya əlavə
+    # 5. Bazaya əlavə
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
