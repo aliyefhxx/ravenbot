@@ -111,7 +111,7 @@ def register(client):
             ".unpinstall <ad> - plugin sil",
         ]
         plugins = list(plugin_loader.loaded.keys())
-        text = "📚 <b>Ryhavean Userbot — Yardım</b>\n━━━━━━━━━━━━━━━\n"
+        text = "📚 <b>Ryhavean Userbot </b>\n━━━━━━━━━━━━━━━\n"
         text += "\n".join(f"• <code>{c}</code>" for c in cmds)
         text += f"\n\n🔌 <b>Pluginlər ({len(plugins)}):</b> "
         text += ", ".join(plugins) if plugins else "<i>yoxdur</i>"
