@@ -28,12 +28,19 @@ def preprocess_code(code: str) -> str:
     code = code.replace("brend", "event")
     return code
 
+# Pluginin içindən bütün mümkün komanda strukturlarını tapırıq
 def extract_commands(code: str) -> str:
+    # Bu regex həm pattern=r"^\.komanda", həm də pattern=r"^\.komanda$" formatlarını dəstəkləyir
     matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
+    
+    # Əgər yuxarıdakı tapmasa, sadə pattern formatlarını yoxlayır
     if not matches:
         matches = re.findall(r'pattern="\^\.([\w]+)', code)
+        
     if not matches:
         return "Komanda tapılmadı"
+    
+    # Unikal komandaları siyahıya alır
     unique_matches = sorted(list(set(matches)))
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
@@ -54,10 +61,12 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
         path.unlink(missing_ok=True)
         return False, f"❌ Yükləmə xətası: {e}"
     
+    # Komandaları avtomatik çıxarırıq
     commands = extract_commands(processed_code)
     
+    # İstədiyiniz formatda bildiriş
     notification = (
-        f"📂 <b>Plugin adı</b> <code>{name}</code> <b>Modulu Yükləndi!</b>\n"
+        f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
         "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
         f"ℹ️ <b>Info:</b> {commands}"
     )
