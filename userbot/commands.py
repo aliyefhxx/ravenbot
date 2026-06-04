@@ -359,20 +359,36 @@ def register(client):
         except Exception as e:
             await edit_safe(event, f"❌ {e}")
 
-    # ===== Plugin idarəetmə =====
+     # ===== Plugin idarəetmə =====
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("pinstall")))
     async def pinstall(event):
         if not event.is_reply:
             return await edit_safe(event, f"ℹ️ <code>{P}pinstall</code> əmrini .py faylına reply edin")
+        
         reply = await event.get_reply_message()
         if not reply.document or not (reply.file and reply.file.name and reply.file.name.endswith(".py")):
             return await edit_safe(event, "❌ .py faylı lazımdır")
-        await edit_safe(event, "⏳ Plugin yoxlanılır...")
+        
+        # "Yoxlanılır" mesajını göndərmirik, birbaşa faylı endiririk
         data = await reply.download_media(bytes)
         code = data.decode("utf-8", errors="replace")
         name = reply.file.name[:-3]
+        
+        # Pluginin quraşdırılması (msg burada artıq install_plugin funksiyasından gələn mətndir)
         ok, msg = await plugin_loader.install_plugin(name, code, event.client)
-        await edit_safe(event, msg)
+        
+        # Əgər uğurlu yüklənsə, istədiyiniz mesajı göstəririk
+        if ok:
+            commands = plugin_loader.extract_commands(code)
+            notification = (
+                f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
+                "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+                f"ℹ️ <b>Info:</b> {commands}"
+            )
+            await edit_safe(event, notification)
+        else:
+            # Əgər xəta varsa (məsələn, təhlükəsizlik xətası), onu göstəririk
+            await edit_safe(event, msg)
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("unpinstall")))
     async def unpinstall(event):
