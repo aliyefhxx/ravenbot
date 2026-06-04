@@ -37,48 +37,33 @@ def extract_commands(code: str) -> str:
         matches.extend(re.findall(p, code))
         
     if not matches:
-        return "Komanda tapılmadı"
+        return "" # "Komanda tapılmadı" yerinə boşluq qaytarırıq
     
     unique_matches = sorted(list(set(matches)))
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
-    # 1. Kodun təmizlənməsi
     processed_code = preprocess_code(code)
     
-    # 2. Təhlükəsizlik yoxlanışı
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        await client.send_message("me", f"❌ <b>Təhlükəsizlik xətası:</b> {reason}", parse_mode="html")
-        return False, reason
+        return False, f"❌ <b>Təhlükəsizlik xətası:</b> {reason}"
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
     
-    # 3. Yükləmə prosesi
     try:
         await _load_one(path, client, notify=False)
     except Exception as e:
         path.unlink(missing_ok=True)
-        await client.send_message("me", f"❌ <b>Yükləmə xətası:</b> {e}", parse_mode="html")
-        return False, str(e)
+        return False, f"❌ <b>Yükləmə xətası:</b> {e}"
     
-    # 4. Yekun mesajı göndəririk (artıq yoxlanılır yazısı olmadan)
-    commands = extract_commands(processed_code)
-    notification = (
-        f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
-        "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
-        f"ℹ️ <b>Info:</b> {commands}"
-    )
-    await client.send_message("me", notification, parse_mode="html")
-    
-    # 5. Bazaya əlavə
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    return True, ""
+    return True, "Uğurlu"
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
