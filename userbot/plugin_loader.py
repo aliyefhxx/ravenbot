@@ -14,38 +14,25 @@ PLUGIN_DIR.mkdir(exist_ok=True)
 
 loaded: dict[str, object] = {}
 
-# Kodu təmizləyən və client-ə uyğunlaşdıran funksiya
 def preprocess_code(code: str) -> str:
-    # 1. userbot importlarını sil
     code = re.sub(r'from userbot\..* import .*\n', '', code)
     code = re.sub(r'from userbot import .*\n', '', code)
-    # 2. CmdHelp və Help obyektlərini sil
     code = re.sub(r'Help\s*=\s*CmdHelp\(.*\)', '', code)
     code = re.sub(r'Help\..*', '', code)
-    # 3. register dekoratorlarını client.on ilə əvəz et
     code = re.sub(r'@register\(.*pattern=(.*)\)', r'@client.on(events.NewMessage(pattern=\1))', code)
-    # 4. 'brend' və ya digər funksiya adlarını 'event' ilə dəyiş (ümumi çevirmə)
     code = code.replace("brend", "event")
     return code
 
-# Pluginin içindən bütün mümkün komanda strukturlarını tapırıq
 def extract_commands(code: str) -> str:
-    # Bu regex həm pattern=r"^\.komanda", həm də pattern=r"^\.komanda$" formatlarını dəstəkləyir
     matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
-    
-    # Əgər yuxarıdakı tapmasa, sadə pattern formatlarını yoxlayır
     if not matches:
         matches = re.findall(r'pattern="\^\.([\w]+)', code)
-        
     if not matches:
         return "Komanda tapılmadı"
-    
-    # Unikal komandaları siyahıya alır
     unique_matches = sorted(list(set(matches)))
     return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
-    # Kodu bazaya yazmazdan əvvəl avtomatik təmizləyirik
     processed_code = preprocess_code(code)
     
     safe, reason = analyze_plugin(processed_code)
@@ -61,10 +48,9 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
         path.unlink(missing_ok=True)
         return False, f"❌ Yükləmə xətası: {e}"
     
-    # Komandaları avtomatik çıxarırıq
     commands = extract_commands(processed_code)
     
-    # İstədiyiniz formatda bildiriş
+    # Tək mesaj formatı
     notification = (
         f"📂 <b>Plugin adı {name} Modulu Yükləndi!</b>\n"
         "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
@@ -77,7 +63,8 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    return True, f"✅ <b>{name}</b> plugini quruldu"
+    # Mesaj göndərildiyi üçün buradan sadəcə True qaytarırıq (artıq mesajsız)
+    return True, ""
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
@@ -94,9 +81,7 @@ async def _load_one(path: Path, client):
     name = path.stem
     spec = importlib.util.spec_from_file_location(f"plugins.{name}", path)
     mod = importlib.util.module_from_spec(spec)
-    # Pluginə client obyektini ötürürük
     mod.client = client
-    # Events-i modula əlavə edirik ki, çalışa bilsin
     from telethon import events
     mod.events = events
     try:
