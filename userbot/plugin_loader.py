@@ -14,13 +14,21 @@ PLUGIN_DIR.mkdir(exist_ok=True)
 
 loaded: dict[str, object] = {}
 
-# Pluginin içindən komandaları regex ilə tapırıq
+# Pluginin içindən bütün mümkün komanda strukturlarını tapırıq
 def extract_commands(code: str) -> str:
-    # pattern="^.(komanda)" strukturunu axtarır
-    matches = re.findall(r'pattern=r"\^.(\w+)', code)
+    # Bu regex həm pattern=r"^\.komanda", həm də pattern=r"^\.komanda$" formatlarını dəstəkləyir
+    matches = re.findall(r'pattern=r"\^\\\.([\w]+)', code)
+    
+    # Əgər yuxarıdakı tapmasa, sadə pattern formatlarını yoxlayır
+    if not matches:
+        matches = re.findall(r'pattern="\^\.([\w]+)', code)
+        
     if not matches:
         return "Komanda tapılmadı"
-    return ", ".join([f".{cmd}" for cmd in matches])
+    
+    # Unikal komandaları siyahıya alır
+    unique_matches = sorted(list(set(matches)))
+    return ", ".join([f".{cmd}" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     safe, reason = analyze_plugin(code)
