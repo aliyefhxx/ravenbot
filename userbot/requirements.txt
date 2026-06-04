@@ -8,7 +8,7 @@ python-dotenv==1.0.1
 httpx==0.27.2
 pydantic==2.9.2
 speedtest-cli
-googletrans==4.0.0-rc1
+googletrans
 # voice_studio plugin üçün əlavələr
 # YENİ: edge-tts 7.x — 403 / TrustedClientToken xətasını həll edir
 edge-tts>=7.0.2
