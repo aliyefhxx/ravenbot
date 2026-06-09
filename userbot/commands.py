@@ -1,9 +1,3 @@
-"""
-==================================================
-🤖 BÜTÜN DAXİLİ KOMANDALAR - RYHAVEAN USERBOT
-==================================================
-"""
-
 import asyncio
 import io
 import random
