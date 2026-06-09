@@ -1,4 +1,9 @@
-"""Dinamik plugin yükləmə sistemi"""
+"""
+==================================================
+🤖 DİNAMİK PLUGIN YÜKLƏMƏ SİSTEMİ - RYHAVEAN
+==================================================
+"""
+
 import importlib.util
 import sys
 import traceback
@@ -37,17 +42,17 @@ def extract_commands(code: str) -> str:
         matches.extend(re.findall(p, code))
         
     if not matches:
-        return "" # "Komanda tapılmadı" yerinə boşluq qaytarırıq
+        return "<i>Komanda tapılmadı</i>"
     
     unique_matches = sorted(list(set(matches)))
-    return ", ".join([f".{cmd}" for cmd in unique_matches])
+    return ", ".join([f"<code>.{cmd}</code>" for cmd in unique_matches])
 
 async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     processed_code = preprocess_code(code)
     
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        return False, f"❌ <b>Təhlükəsizlik xətası:</b> {reason}"
+        return False, f"❌ <b>Təhlükəsizlik xətası (Plugin: <code>{name}</code>):</b> {reason}"
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
@@ -56,14 +61,14 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
         await _load_one(path, client, notify=False)
     except Exception as e:
         path.unlink(missing_ok=True)
-        return False, f"❌ <b>Yükləmə xətası:</b> {e}"
+        return False, f"❌ <b>Yükləmə xətası (Plugin: <code>{name}</code>):</b> {e}"
     
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    return True, "Uğurlu"
+    return True, f"✅ <b>Plugin '<u>{name}</u>' uğurla yükləndi və aktivləşdirildi!</b>"
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
@@ -74,7 +79,7 @@ async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path.unlink(missing_ok=True)
     async with pool().acquire() as c:
         await c.execute("DELETE FROM plugins WHERE name=$1", name)
-    return True, f"🗑 <b>{name}</b> plugini silindi"
+    return True, f"🗑 <b>Plugin '<u>{name}</u>' sistemdən silindi.</b>"
 
 async def _load_one(path: Path, client, notify=False):
     name = path.stem
@@ -86,13 +91,13 @@ async def _load_one(path: Path, client, notify=False):
     try:
         spec.loader.exec_module(mod)
         loaded[name] = mod
-        log.info("Plugin yükləndi: %s", name)
+        log.info("Plugin uğurla yükləndi: %s", name)
     except Exception:
         err = traceback.format_exc()
         log.error("Plugin xətası %s: %s", name, err)
         if notify:
             try:
-                await client.send_message("me", f"⚠️ Plugin xətası <b>{name}</b>:\n<code>{err[:3000]}</code>", parse_mode="html")
+                await client.send_message("me", f"⚠️ <b>Plugin xətası:</b> <code>{name}</code>\n\n<code>{err[:3000]}</code>", parse_mode="html")
             except Exception:
                 pass
 
