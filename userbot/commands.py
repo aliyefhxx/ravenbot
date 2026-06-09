@@ -45,11 +45,10 @@ async def edit_safe(event, text: str):
 async def rl_check(event, key: str, limit=5, per=10) -> bool:
     ok = await ratelimit.allow(f"{event.sender_id}:{key}", limit, per)
     if not ok:
-        await edit_safe(event, "⏳ <b>Çox sürətli! Bir az gözləyin.</b>")
+        await edit_safe(event, "<b>⏳ Çox sürətli! Bir az gözləyin.</b>")
     return ok
 
 async def get_target_user(event):
-    """Reply / username / id -dən target tap"""
     arg = event.pattern_match.group(1).strip() if event.pattern_match else ""
     if event.is_reply:
         msg = await event.get_reply_message()
@@ -74,11 +73,11 @@ def register(client):
     async def alive(event):
         if not await rl_check(event, "alive"): return
         msg = await get_setting("alive_msg") or (
-            "✨ <b>Ryhavean Userbot aktivdir</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "🤖 <b>Sistem:</b> <code>online</code>\n"
-            "⚡ <b>Versiya:</b> <code>1.0.0</code>\n"
-            "🛡 <b>Təhlükəsizlik:</b> <code>aktiv</code>"
+            "<b>✨ Ryhavean Userbot aktivdir</b>\n"
+            "<b>━━━━━━━━━━━━━━━</b>\n"
+            "<b>🤖 Sistem: <code>online</code></b>\n"
+            "<b>⚡ Versiya: <code>1.0.0</code></b>\n"
+            "<b>🛡 Təhlükəsizlik: <code>aktiv</code></b>"
         )
         await edit_safe(event, msg)
 
@@ -86,137 +85,131 @@ def register(client):
     async def dlive(event):
         new = event.pattern_match.group(1).strip()
         if not new:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}dlive yeni mesaj</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}dlive yeni mesaj</code></b>")
         await set_setting("alive_msg", new)
-        await edit_safe(event, "✅ <b>Alive mesajı yeniləndi.</b>")
+        await edit_safe(event, "<b>✅ Alive mesajı yeniləndi.</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("restart")))
     async def restart(event):
-        await edit_safe(event, "♻️ <b>Restart edilir...</b>")
+        await edit_safe(event, "<b>♻️ Restart edilir...</b>")
         await set_setting("restart_chat", str(event.chat_id))
         await set_setting("restart_msg", str(event.id))
         os.execv(sys.executable, [sys.executable, *sys.argv])
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("help")))
     async def help_cmd(event):
-        cmds = [
-            ".alive - <b>botun aktivliyini yoxla</b>",
-            ".dlive <mesaj> - <b>alive mesajını dəyiş</b>",
-            ".restart - <b>userbotu yenidən başlat</b>",
-            ".ban [reply/id/username] - <b>ban et</b>",
-            ".unban - <b>banı aç</b>",
-            ".mute - <b>mute et</b>",
-            ".block / .unblock - <b>bloklama</b>",
-            ".info - <b>istifadəçi məlumatı</b>",
-            ".tag mention|3|5|random - <b>tag</b>",
-            ".setwelcome <mesaj> - <b>xoş gəldin mesajı</b>",
-            ".purge [N] - <b>mesaj sil</b>",
-            ".klon - <b>profil klonla</b>",
-            ".unklon - <b>klonu sıfırla</b>",
-            ".pinstall (reply .py) - <b>plugin qur</b>",
-            ".unpinstall <ad> - <b>plugin sil</b>",
-        ]
         plugins = list(plugin_loader.loaded.keys())
-        text = "📚 <b>Ryhavean Userbot Yardım</b>\n━━━━━━━━━━━━━━━\n"
-        text += "\n".join(f"• <code>{c}</code>" for c in cmds)
-        text += f"\n\n🔌 <b>Yüklü Pluginlər ({len(plugins)}):</b> "
-        text += ", ".join(plugins) if plugins else "<i>yoxdur</i>"
+        text = (
+            "<b>📚 Ryhavean Userbot - Yardım Paneli</b>\n"
+            "<b>━━━━━━━━━━━━━━━</b>\n"
+            "<b>🛡 İdarəetmə:</b>\n"
+            "<code>.alive</code> | <code>.dlive</code> | <code>.restart</code>\n\n"
+            "<b>🔨 Moderasiya:</b>\n"
+            "<code>.ban</code> | <code>.unban</code> | <code>.mute</code> | <code>.block</code> | <code>.unblock</code>\n\n"
+            "<b>👤 İstifadəçi & Qrup:</b>\n"
+            "<code>.info</code> | <code>.tag</code> | <code>.setwelcome</code> | <code>.purge</code>\n\n"
+            "<b>🧬 Profil Klonlama:</b>\n"
+            "<code>.klon</code> | <code>.unklon</code>\n\n"
+            "<b>🔌 Plugin İdarəetmə:</b>\n"
+            "<code>.pinstall</code> | <code>.unpinstall</code>\n"
+            "<b>━━━━━━━━━━━━━━━</b>\n"
+            f"<b>🔌 Yüklü Pluginlər ({len(plugins)}):</b>\n"
+            f"<b>{', '.join(plugins) if plugins else 'Yoxdur'}</b>"
+        )
         await edit_safe(event, text)
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("ban")))
     async def ban(event):
         uid, ent = await get_target_user(event)
         if not uid:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}ban</code> (reply) və ya <code>{P}ban @user</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}ban</code> (reply) və ya <code>{P}ban @user</code></b>")
         try:
             rights = ChatBannedRights(until_date=None, view_messages=True)
             await event.client(EditBannedRequest(event.chat_id, uid, rights))
-            await edit_safe(event, f"🔨 <b>Ban olundu:</b> <code>{uid}</code>")
+            await edit_safe(event, f"<b>🔨 Ban olundu: <code>{uid}</code></b>")
         except (ChatAdminRequiredError, UserAdminInvalidError):
-            await edit_safe(event, "⚠️ <b>Yetkiniz yoxdur.</b>")
+            await edit_safe(event, "<b>⚠️ Yetkiniz yoxdur.</b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("unban")))
     async def unban(event):
         uid, _ = await get_target_user(event)
         if not uid:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}unban @user</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}unban @user</code></b>")
         try:
             rights = ChatBannedRights(until_date=None, view_messages=False)
             await event.client(EditBannedRequest(event.chat_id, uid, rights))
-            await edit_safe(event, f"✅ <b>Ban açıldı:</b> <code>{uid}</code>")
+            await edit_safe(event, f"<b>✅ Ban açıldı: <code>{uid}</code></b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("mute")))
     async def mute(event):
         uid, _ = await get_target_user(event)
         if not uid:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}mute</code> (reply/id/username)")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}mute</code> (reply/id/username)</b>")
         try:
             rights = ChatBannedRights(until_date=None, send_messages=True)
             await event.client(EditBannedRequest(event.chat_id, uid, rights))
-            await edit_safe(event, f"🔇 <b>Mute olundu:</b> <code>{uid}</code>")
+            await edit_safe(event, f"<b>🔇 Mute olundu: <code>{uid}</code></b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("block")))
     async def block(event):
         uid, _ = await get_target_user(event)
         if not uid:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}block</code> (reply/id/username)")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}block</code> (reply/id/username)</b>")
         try:
             await event.client(BlockRequest(uid))
             async with pool().acquire() as c:
                 await c.execute("INSERT INTO blocks(user_id) VALUES($1) ON CONFLICT DO NOTHING", uid)
-            await edit_safe(event, f"⛔️ <b>Bloklandı:</b> <code>{uid}</code>")
+            await edit_safe(event, f"<b>⛔️ Bloklandı: <code>{uid}</code></b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("unblock")))
     async def unblock(event):
         uid, _ = await get_target_user(event)
         if not uid:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}unblock</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}unblock</code></b>")
         try:
             await event.client(UnblockRequest(uid))
             async with pool().acquire() as c:
                 await c.execute("DELETE FROM blocks WHERE user_id=$1", uid)
-            await edit_safe(event, f"✅ <b>Blok açıldı:</b> <code>{uid}</code>")
+            await edit_safe(event, f"<b>✅ Blok açıldı: <code>{uid}</code></b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("info")))
     async def info(event):
         uid, ent = await get_target_user(event)
-        if not ent:
-            ent = await event.get_sender()
+        if not ent: ent = await event.get_sender()
         full = await event.client.get_entity(ent.id)
         try:
             fu = await event.client(GetFullUserRequest(full.id))
             bio = fu.full_user.about or "—"
-        except Exception:
-            bio = "—"
+        except Exception: bio = "—"
         premium = "✅" if getattr(full, "premium", False) else "❌"
         text = (
-            "👤 <b>İstifadəçi məlumatı</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            f"🪪 <b>Ad:</b> <b>{full.first_name or ''} {full.last_name or ''}</b>\n"
-            f"🔗 <b>Username:</b> @{full.username or '—'}\n"
-            f"🆔 <b>ID:</b> <code>{full.id}</code>\n"
-            f"💬 <b>Bio:</b> <i>{bio}</i>\n"
-            f"⭐ <b>Premium:</b> {premium}"
+            "<b>👤 İstifadeçi melumatı</b>\n"
+            "<b>━━━━━━━━━━━━━━━</b>\n"
+            f"<b>🪪 Ad: {full.first_name or ''} {full.last_name or ''}</b>\n"
+            f"<b>🔗 Username: @{full.username or '—'}</b>\n"
+            f"<b>🆔 ID: <code>{full.id}</code></b>\n"
+            f"<b>💬 Bio: <i>{bio}</i></b>\n"
+            f"<b>⭐ Premium: {premium}</b>"
         )
         await edit_safe(event, text)
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("tag")))
     async def tag(event):
         if not event.is_group:
-            return await edit_safe(event, "⚠️ <b>Yalnız qruplarda işləyir.</b>")
+            return await edit_safe(event, "<b>⚠️ Yalnız qruplarda işləyir.</b>")
         mode = (event.pattern_match.group(1).strip() or "mention").split()[0].lower()
         if mode not in {"mention","3","5","random"}:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}tag mention|3|5|random</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}tag mention|3|5|random</code></b>")
         members = []
         async for u in event.client.iter_participants(event.chat_id, limit=500):
             if u.bot or u.deleted: continue
@@ -233,26 +226,23 @@ def register(client):
                 try:
                     await event.client.send_message(event.chat_id, " ".join(chunk), parse_mode="html")
                     sent += 1
-                    if sent % 5 == 0:
-                        await asyncio.sleep(2)
-                except FloodWaitError as e:
-                    await asyncio.sleep(e.seconds + 1)
+                    if sent % 5 == 0: await asyncio.sleep(2)
+                except FloodWaitError as e: await asyncio.sleep(e.seconds + 1)
                 chunk = []
-        if chunk:
-            await event.client.send_message(event.chat_id, " ".join(chunk), parse_mode="html")
+        if chunk: await event.client.send_message(event.chat_id, " ".join(chunk), parse_mode="html")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("setwelcome")))
     async def setwelcome(event):
         text = event.pattern_match.group(1).strip()
         if not text:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}setwelcome Salam {{mention}}, xoş gəldin</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}setwelcome Salam {{mention}}, xoş gəldin</code></b>")
         async with pool().acquire() as c:
             await c.execute(
                 "INSERT INTO welcomes(chat_id,message) VALUES($1,$2) "
                 "ON CONFLICT(chat_id) DO UPDATE SET message=EXCLUDED.message",
                 event.chat_id, text
             )
-        await edit_safe(event, "✅ <b>Xoş gəldin mesajı qeyd edildi.</b>")
+        await edit_safe(event, "<b>✅ Xoş gəldin mesajı qeyd edildi.</b>")
 
     @client.on(events.ChatAction())
     async def welcome_handler(event):
@@ -281,23 +271,23 @@ def register(client):
                 ids = [m.id async for m in event.client.iter_messages(event.chat_id, limit=int(arg))]
                 count = len(ids)
             else:
-                return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}purge 50</code> və ya reply")
+                return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}purge 50</code> və ya reply</b>")
             try:
                 await event.client.delete_messages(event.chat_id, ids)
-                await event.respond(f"🧹 <b>{count} mesaj silindi.</b>", parse_mode="html")
+                await event.respond(f"<b>🧹 {count} mesaj silindi.</b>", parse_mode="html")
             except Exception:
                 own = [i async for i, m in [(mm.id, mm) async for mm in event.client.iter_messages(event.chat_id, limit=200)] if m.sender_id == me.id]
                 await event.client.delete_messages(event.chat_id, own)
-                await event.respond(f"🧹 <b>Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi.</b>", parse_mode="html")
+                await event.respond(f"<b>🧹 Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi.</b>", parse_mode="html")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("klon")))
     async def klon(event):
         uid, ent = await get_target_user(event)
         if not ent:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}klon</code> (reply və ya id)")
-        await edit_safe(event, "🧬 <b>Klonlanır...</b>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}klon</code> (reply və ya id)</b>")
+        await edit_safe(event, "<b>🧬 Klonlanır...</b>")
         me = await event.client.get_me()
         full_me = await event.client(GetFullUserRequest(me.id))
         photo_bytes = b""
@@ -305,8 +295,7 @@ def register(client):
             buf = io.BytesIO()
             await event.client.download_profile_photo("me", file=buf)
             photo_bytes = buf.getvalue()
-        except Exception:
-            pass
+        except Exception: pass
         async with pool().acquire() as c:
             await c.execute(
                 "INSERT INTO klones(user_id,original_first,original_last,original_bio,original_photo) "
@@ -327,9 +316,9 @@ def register(client):
             if buf.getvalue():
                 file = await event.client.upload_file(buf, file_name="klon.jpg")
                 await event.client(UploadProfilePhotoRequest(file))
-            await edit_safe(event, f"✅ <b>Klonlama tamamlandı:</b> <b>{ent.first_name}</b>")
+            await edit_safe(event, f"<b>✅ Klonlama tamamlandı: {ent.first_name}</b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("unklon")))
     async def unklon(event):
@@ -337,7 +326,7 @@ def register(client):
         async with pool().acquire() as c:
             row = await c.fetchrow("SELECT * FROM klones WHERE user_id=$1", me.id)
         if not row:
-            return await edit_safe(event, "ℹ️ <b>Klon məlumatı tapılmadı.</b>")
+            return await edit_safe(event, "<b>ℹ️ Klon məlumatı tapılmadı.</b>")
         try:
             await event.client(UpdateProfileRequest(
                 first_name=row["original_first"] or "",
@@ -353,17 +342,17 @@ def register(client):
                 await event.client(UploadProfilePhotoRequest(file))
             async with pool().acquire() as c:
                 await c.execute("DELETE FROM klones WHERE user_id=$1", me.id)
-            await edit_safe(event, "✅ <b>Original profil geri qaytarıldı.</b>")
+            await edit_safe(event, "<b>✅ Original profil geri qaytarıldı.</b>")
         except Exception as e:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {e}")
+            await edit_safe(event, f"<b>❌ Xəta: {e}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("pinstall")))
     async def pinstall(event):
         if not event.is_reply:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}pinstall</code> əmrini .py faylına reply edin")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}pinstall</code> əmrini .py faylına reply edin</b>")
         reply = await event.get_reply_message()
         if not reply.document or not (reply.file and reply.file.name and reply.file.name.endswith(".py")):
-            return await edit_safe(event, "❌ <b>.py faylı lazımdır!</b>")
+            return await edit_safe(event, "<b>❌ .py faylı lazımdır!</b>")
         data = await reply.download_media(bytes)
         code = data.decode("utf-8", errors="replace")
         name = reply.file.name[:-3]
@@ -371,20 +360,20 @@ def register(client):
         if ok:
             commands = plugin_loader.extract_commands(code)
             notification = (
-                f"📂 <b>Plugin '{name}' uğurla yükləndi!</b>\n"
-                "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
-                f"ℹ️ <b>Info:</b> {commands}"
+                f"<b>📂 Plugin '<u>{name}</u>' uğurla yükləndi!</b>\n"
+                "<b>➖➖➖➖➖➖➖➖➖➖➖➖➖</b>\n"
+                f"<b>ℹ️ Info: {commands}</b>"
             )
             await edit_safe(event, notification)
         else:
-            await edit_safe(event, f"❌ <b>Xəta:</b> {msg}")
+            await edit_safe(event, f"<b>❌ Xəta: {msg}</b>")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("unpinstall")))
     async def unpinstall(event):
         name = event.pattern_match.group(1).strip()
         if not name:
-            return await edit_safe(event, f"ℹ️ <b>İstifadə:</b> <code>{P}unpinstall &lt;ad&gt;</code>")
+            return await edit_safe(event, f"<b>ℹ️ İstifadə: <code>{P}unpinstall &lt;ad&gt;</code></b>")
         ok, msg = await plugin_loader.uninstall_plugin(name)
-        await edit_safe(event, msg)
+        await edit_safe(event, f"<b>{msg}</b>")
 
     log.info("🚀 Ryhavean Userbot bütün komandalar uğurla qeydiyyatdan keçdi.")
