@@ -3,13 +3,16 @@ import asyncio
 import logging
 import os
 import sys
+import re
+import random
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
 import uvicorn
-from telethon import TelegramClient
+from telethon import TelegramClient, functions, types
 from telethon.sessions import StringSession
+from telethon.tl.types import MessageEntityCustomEmoji
 
 from config import Config
 import db, ratelimit, plugin_loader, commands, security
@@ -21,7 +24,7 @@ logging.basicConfig(
 log = logging.getLogger("ryhavean")
 
 tg_client: TelegramClient | None = None
-
+premium_emojis = []
 
 def get_session_string() -> str:
     raw = Config.SESSION_STRING
@@ -36,6 +39,44 @@ def get_session_string() -> str:
             sys.exit(1)
     return raw
 
+# Premium emoji paketlərini çəkən funksiya
+async def update_premium_emojis(client):
+    global premium_emojis
+    packs = ["HmmHDEmoji", "FrogeEmoji"]
+    new_emojis = []
+    for pack in packs:
+        try:
+            stickerset = await client(functions.messages.GetStickerSetRequest(
+                stickerset=types.InputStickerSetShortName(short_name=pack),
+                hash=0
+            ))
+            for doc in stickerset.documents:
+                new_emojis.append(doc.id)
+        except Exception as e:
+            log.error(f"Emoji pack yüklənmə xətası ({pack}): {e}")
+    premium_emojis = new_emojis
+
+# Client-i patch edən funksiya
+def patch_client(client):
+    original_send_message = client.send_message
+
+    async def send_message_patched(entity, message, **kwargs):
+        if isinstance(message, str) and premium_emojis:
+            emoji_pattern = re.compile(r'[\U00010000-\U0010ffff]')
+            matches = list(emoji_pattern.finditer(message))
+            if matches:
+                entities = kwargs.get('formatting_entities') or []
+                for match in matches:
+                    entities.append(MessageEntityCustomEmoji(
+                        offset=match.start(),
+                        length=1,
+                        document_id=random.choice(premium_emojis)
+                    ))
+                kwargs['formatting_entities'] = entities
+                message = emoji_pattern.sub(" ", message)
+        return await original_send_message(entity, message, **kwargs)
+
+    client.send_message = send_message_patched
 
 async def post_restart_notice(client):
     chat = await db.get_setting("restart_chat")
@@ -47,7 +88,6 @@ async def post_restart_notice(client):
             pass
         await db.set_setting("restart_chat", "")
         await db.set_setting("restart_msg", "")
-
 
 async def start_userbot():
     global tg_client
@@ -64,6 +104,11 @@ async def start_userbot():
         app_version="1.0.0",
     )
     await tg_client.start()
+    
+    # Premium emoji sistemini aktivləşdiririk
+    patch_client(tg_client)
+    await update_premium_emojis(tg_client)
+    
     me = await tg_client.get_me()
     log.info("✅ Daxil oldu: %s (@%s) id=%s", me.first_name, me.username, me.id)
 
@@ -79,7 +124,6 @@ async def start_userbot():
     log.info("🟢 Userbot işləyir. Komandalar üçün .help yazın.")
     await tg_client.run_until_disconnected()
 
-
 async def _userbot_runner():
     try:
         await start_userbot()
@@ -87,13 +131,7 @@ async def _userbot_runner():
         log.exception("Userbot kritik xəta - prosess restart")
         os._exit(1)
 
-
 async def _self_ping_loop():
-    """
-    Render Free planında 15 dəq inaktivlikdən sonra service yuxuya gedir.
-    Hər 10 dəqiqədən bir öz URL-ni ping edirik ki, həmişə oyaq qalsın.
-    """
-    # Render avtomatik olaraq RENDER_EXTERNAL_URL env-i təyin edir
     url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("SELF_URL")
     if not url:
         log.warning("⚠️ RENDER_EXTERNAL_URL tapılmadı — self-ping deaktivdir")
@@ -101,8 +139,6 @@ async def _self_ping_loop():
 
     ping_url = url.rstrip("/") + "/health"
     log.info("🔁 Self-ping aktivdir: %s (hər 10 dəq)", ping_url)
-
-    # İlk ping-i 60 sandyə sonra
     await asyncio.sleep(60)
 
     async with httpx.AsyncClient(timeout=15.0) as http:
@@ -112,8 +148,7 @@ async def _self_ping_loop():
                 log.info("🔁 Self-ping: %s", r.status_code)
             except Exception as e:
                 log.warning("Self-ping xətası: %s", e)
-            await asyncio.sleep(600)  # 10 dəqiqə
-
+            await asyncio.sleep(600)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -125,22 +160,18 @@ async def lifespan(app: FastAPI):
     if tg_client and tg_client.is_connected():
         await tg_client.disconnect()
 
-
 app = FastAPI(lifespan=lifespan)
-
 
 @app.get("/")
 async def root():
     connected = tg_client.is_connected() if tg_client else False
     return {"status": "ok", "userbot_connected": connected}
 
-
 @app.get("/health")
 async def health():
     if tg_client and tg_client.is_connected():
         return {"status": "healthy"}
     return {"status": "starting"}
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "10000"))
