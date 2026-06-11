@@ -1,4 +1,4 @@
-# Camera Trap Plugin üçün tələb olunanlar
+# Camera Trap Plugin üçün tələb 
 telethon==1.36.0
 Pillow==10.3.0
 # Sizin mövcud paketləriniz
