@@ -15,17 +15,24 @@ def register_quotly(client):
 
         try:
             async with event.client.conversation(bot_username) as conv:
-                # 1. Mesajı bota yönləndir
-                await conv.send_message(reply_message)
+                # 1. Mesajı forward edirik (bu zaman bot müəllifi düzgün tanıyır)
+                await event.client.forward_messages(bot_username, reply_message)
                 
-                # 2. Əgər .qs-dirsə, şəkli əldə etmək üçün /q s göndər
+                # Botun mesajı qəbul etdiyinə dair cavabını gözləyirik (spam-ın qarşısını alır)
+                await conv.get_response()
+                
+                # 2. Əgər .qs-dirsə, şəkil formatı üçün /q s göndər
                 if command_type == "qs":
-                    await conv.send_message("/q s")
+                    # Ən son göndərdiyimiz mesaja cavab olaraq yazırıq
+                    last_msg = await conv.get_history()
+                    await conv.send_message("/q s", reply_to=last_msg[0].id)
+                    # Şəkil cavabını gözlə
+                    response = await conv.get_response()
+                else:
+                    # .q üçün botun avtomatik göndərdiyi sticker-i al
+                    response = await conv.get_response()
                 
-                # 3. Botdan gələn cavabı tut
-                response = await conv.get_response()
-                
-                # 4. Cavabı orijinal mesajın olduğu yerə, həmin mesaja reply kimi göndər
+                # 3. Cavabı orijinal mesajın olduğu yerə, həmin mesaja reply kimi göndər
                 await event.client.send_message(
                     event.chat_id,
                     response,
