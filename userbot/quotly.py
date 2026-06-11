@@ -22,7 +22,7 @@ from emoji_utils import apply_premium_emojis
 
 log = logging.getLogger("quotly")
 
-SEKIL_KANAL = os.getenv("SEKIL_KANAL", "@ryhavean_pics")
+SEKIL_KANAL = "@ryhavean_pics"  # kanal adını burdan dəyiş
 _PHOTO_CACHE: dict[str, tuple[float, list]] = {}
 _CACHE_TTL = 600  # 10 dəqiqə
 
