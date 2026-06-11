@@ -13,7 +13,6 @@ import asyncio
 from pathlib import Path
 from security import analyze_plugin
 from db import pool
-from emoji_utils import vip_format
 
 log = logging.getLogger("plugins")
 PLUGIN_DIR = Path(__file__).parent / "plugins"
@@ -53,7 +52,7 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        return False, vip_format(f"❌ Təhlükəsizlik xətası (Plugin: <code>{name}</code>): {reason}")
+        return False, f"❌ Təhlükəsizlik xətası (Plugin: <code>{name}</code>): {reason}"
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
@@ -62,14 +61,14 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
         await _load_one(path, client, notify=False)
     except Exception as e:
         path.unlink(missing_ok=True)
-        return False, vip_format(f"❌ Yükləmə xətası (Plugin: <code>{name}</code>): {e}")
+        return False, f"❌ Yükləmə xətası (Plugin: <code>{name}</code>): {e}"
     
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    return True, vip_format(f"✅ Plugin '<u>{name}</u>' uğurla yükləndi və aktivləşdirildi!")
+    return True, f"✅ Plugin '<u>{name}</u>' uğurla yükləndi və aktivləşdirildi!"
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
@@ -80,12 +79,12 @@ async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path.unlink(missing_ok=True)
     async with pool().acquire() as c:
         await c.execute("DELETE FROM plugins WHERE name=$1", name)
-    return True, vip_format(f"🗑 Plugin '<u>{name}</u>' sistemdən silindi.")
+    return True, f"🗑 Plugin '<u>{name}</u>' sistemdən silindi."
 
 async def _load_one(path: Path, client, notify=False):
     name = path.stem
     spec = importlib.util.spec_from_file_location(f"plugins.{name}", path)
-    mod = importlib.util.module_from_spec(spec)
+    mod = importlib.module_from_spec(spec)
     mod.client = client
     from telethon import events
     mod.events = events
@@ -100,7 +99,7 @@ async def _load_one(path: Path, client, notify=False):
             try:
                 await client.send_message(
                     "me",
-                    vip_format(f"⚠️ Plugin xətası: <code>{name}</code>\n\n<code>{err[:3000]}</code>"),
+                    f"⚠️ Plugin xətası: <code>{name}</code>\n\n<code>{err[:3000]}</code>",
                     parse_mode="html"
                 )
             except Exception:
