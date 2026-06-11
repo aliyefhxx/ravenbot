@@ -31,6 +31,10 @@ def preprocess_code(code: str) -> str:
     code = code.replace("brend", "event")
     return code
 
+def vip_format(text: str, auto_bold: bool = True) -> str:
+    return apply_premium_emojis(text)
+
+
 def extract_commands(code: str) -> str:
     patterns = [
         r'pattern=r"\^\\\.([\w]+)"',
