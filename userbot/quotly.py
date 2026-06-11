@@ -4,44 +4,37 @@ def register_quotly(client):
 
     @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(q|qs)$"))
     async def quotly_handler(event):
-        # 1. Reply yoxlanılması
         reply_message = await event.get_reply_message()
         if not reply_message:
             await event.delete()
             return
 
-        command_type = event.pattern_match.group(1)
+        is_qs = (event.pattern_match.group(1) == "qs")
         await event.delete()
         bot_username = "QuotLyBot"
 
         try:
+            # 1. Mesajı bota forward et ki, müəllif adını düzgün alsın
+            await event.client.forward_messages(bot_username, reply_message)
+            
+            # 2. Botun cavab verməsini gözlə (bəzən 1-2 saniyə çəkə bilir)
             async with event.client.conversation(bot_username) as conv:
-                # 2. Mesajı forward et (müəllif adını qorumaq üçün)
-                await event.client.forward_messages(bot_username, reply_message)
+                # Əgər .qs-dirsə, botun stiker əvəzinə şəkil verməsi üçün komandanı göndər
+                if is_qs:
+                    # Botun sonuncu gələn mesajına (forward etdiyimizə) cavab olaraq /q s yazırıq
+                    await conv.send_message("/q s", reply_to=reply_message.id)
                 
-                # 3. Botdan gələn cavabı gözlə
+                # Botun cavabını tut
                 response = await conv.get_response()
                 
-                # 4. Əgər .qs-dirsə, şəkil üçün əmri göndər və yenidən cavab gözlə
-                if command_type == "qs":
-                    await conv.send_message("/q s", reply_to=response.id)
-                    response = await conv.get_response()
+                # 3. Əsas məqam: Botdan gələn media faylını birbaşa sizin chat-ə göndər
+                # Burada 'response' botun bizə göndərdiyi mesajdır
+                await event.client.send_file(
+                    event.chat_id,
+                    response.media,
+                    reply_to=reply_message.id
+                )
                 
-                # 5. Sticker və ya Şəkli göndər
-                # Burada 'response.media' botun hazırladığı faylın məzmunudur
-                if response.media:
-                    await event.client.send_file(
-                        event.chat_id,
-                        response.media,
-                        reply_to=reply_message.id
-                    )
-                else:
-                    # Əgər media yoxdursa (xəta halı), mətn kimi göndər
-                    await event.client.send_message(
-                        event.chat_id,
-                        response.text,
-                        reply_to=reply_message.id
-                    )
-                
-        except Exception:
-            pass
+        except Exception as e:
+            # Əgər xəta versə, sizə xətanı göstərsin (debug üçün)
+            await event.client.send_message(event.chat_id, f"❌ Xəta: {str(e)}")
