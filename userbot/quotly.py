@@ -1,4 +1,5 @@
 from telethon import events
+import asyncio
 
 def register_quotly(client):
 
@@ -15,24 +16,21 @@ def register_quotly(client):
 
         try:
             async with event.client.conversation(bot_username) as conv:
-                # 1. Mesajı forward edirik (bu zaman bot müəllifi düzgün tanıyır)
+                # 1. Mesajı bota forward et
                 await event.client.forward_messages(bot_username, reply_message)
                 
-                # Botun mesajı qəbul etdiyinə dair cavabını gözləyirik (spam-ın qarşısını alır)
-                await conv.get_response()
+                # 2. Botun cavabını (sticker və ya mesaj) gözlə
+                # Əgər bot dərhal cavab vermirsə, bir az gözləmə qoyuruq
+                response = await conv.get_response(timeout=10)
                 
-                # 2. Əgər .qs-dirsə, şəkil formatı üçün /q s göndər
+                # 3. .qs üçün əlavə əmr
                 if command_type == "qs":
-                    # Ən son göndərdiyimiz mesaja cavab olaraq yazırıq
-                    last_msg = await conv.get_history()
-                    await conv.send_message("/q s", reply_to=last_msg[0].id)
+                    # Botun son mesajına reply olaraq /q s yazırıq
+                    await conv.send_message("/q s", reply_to=response.id)
                     # Şəkil cavabını gözlə
-                    response = await conv.get_response()
-                else:
-                    # .q üçün botun avtomatik göndərdiyi sticker-i al
-                    response = await conv.get_response()
+                    response = await conv.get_response(timeout=10)
                 
-                # 3. Cavabı orijinal mesajın olduğu yerə, həmin mesaja reply kimi göndər
+                # 4. Cavabı geri göndər
                 await event.client.send_message(
                     event.chat_id,
                     response,
@@ -40,6 +38,7 @@ def register_quotly(client):
                 )
                 
         except Exception as e:
+            # Əgər bir xəta baş verərsə, sadəcə xətanı bildir
             await event.client.send_message(
                 event.chat_id, 
                 f"<b>❌ QuotLyBot xətası:</b> {str(e)}", 
