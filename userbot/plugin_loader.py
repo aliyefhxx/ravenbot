@@ -13,7 +13,7 @@ import asyncio
 from pathlib import Path
 from security import analyze_plugin
 from db import pool
-from emoji_utils
+from emoji_utils import vip_format
 
 log = logging.getLogger("plugins")
 PLUGIN_DIR = Path(__file__).parent / "plugins"
