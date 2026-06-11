@@ -363,6 +363,8 @@ async def _patched_message_reply(self, message=None, *args, **kwargs):
     return await _original_message_reply(self, message, *args, **kwargs)
 
 
+# ... (yuxarıdakı kodlar olduğu kimi qalır)
+
 def install_patches():
     """Class-level patch tətbiq edir. main.py'da əvvəlcə çağırılmalıdır."""
     TelegramClient.send_message = _patched_send_message
@@ -372,6 +374,11 @@ def install_patches():
     Message.respond = _patched_message_respond
     Message.reply = _patched_message_reply
 
+# 👇 BU HİSSƏNİ MÜTLƏQ ƏLAVƏ ET:
+def vip_format(text: str, auto_bold: bool = True) -> str:
+    """commands.py-in axtardığı funksiya"""
+    text, _ = apply_premium_emojis(text)
+    return text
 
 # Avtomatik tətbiq
 install_patches()
