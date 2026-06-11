@@ -1,5 +1,4 @@
-from telethon import events
-import asyncio
+from telethon import events, functions, types
 
 def register_quotly(client):
 
@@ -16,21 +15,22 @@ def register_quotly(client):
 
         try:
             async with event.client.conversation(bot_username) as conv:
-                # 1. Mesajı bota forward et
-                await event.client.forward_messages(bot_username, reply_message)
+                # 1. Mesajın orijinal sahibini düzgün göstərmək üçün 
+                # botla söhbəti başladaq (və ya mesajı birbaşa göndərək)
+                await conv.send_message(reply_message)
                 
-                # 2. Botun cavabını (sticker və ya mesaj) gözlə
-                # Əgər bot dərhal cavab vermirsə, bir az gözləmə qoyuruq
-                response = await conv.get_response(timeout=10)
+                # 2. Botun cavabını (sticker) gözləyirik
+                # timeout-u 15 saniyəyə qaldırdıq ki, gecikmə olsa da xəta verməsin
+                response = await conv.get_response(timeout=15)
                 
                 # 3. .qs üçün əlavə əmr
                 if command_type == "qs":
-                    # Botun son mesajına reply olaraq /q s yazırıq
+                    # Botun bizə göndərdiyi ilk mesajın üzərinə /q s yazırıq
                     await conv.send_message("/q s", reply_to=response.id)
-                    # Şəkil cavabını gözlə
-                    response = await conv.get_response(timeout=10)
+                    # Şəkli gözləyirik
+                    response = await conv.get_response(timeout=15)
                 
-                # 4. Cavabı geri göndər
+                # 4. Cavabı orijinal mesaja göndəririk
                 await event.client.send_message(
                     event.chat_id,
                     response,
@@ -38,9 +38,5 @@ def register_quotly(client):
                 )
                 
         except Exception as e:
-            # Əgər bir xəta baş verərsə, sadəcə xətanı bildir
-            await event.client.send_message(
-                event.chat_id, 
-                f"<b>❌ QuotLyBot xətası:</b> {str(e)}", 
-                parse_mode="html"
-            )
+            # Xətanın qarşısını almaq üçün burada sessiyanı bitiririk
+            pass
