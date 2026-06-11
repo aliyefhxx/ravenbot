@@ -117,3 +117,7 @@ async def load_all(client):
         if p.name.startswith("_"):
             continue
         await _load_one(p, client, notify=False)
+
+# Faylın ən sonuna, bütün funksiyalardan sonra:
+def vip_format(text: str, auto_bold: bool = True) -> str:
+    return apply_premium_emojis(text)
