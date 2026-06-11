@@ -1,4 +1,4 @@
-"""Ryhavean Userbot - Render Web Service (7/24 self-ping)"""
+"""Ryhavean  - Render Web Service (7/24 self-ping)"""
 import asyncio
 import logging
 import os
