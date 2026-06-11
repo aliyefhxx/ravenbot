@@ -1,377 +1,413 @@
 """
-==================================================
-🌌 Ryhavean Premium Emoji Utility v3
-==================================================
-Bütün send_message / edit_message / respond / reply / send_file
-metodlarına class-level monkey-patch tətbiq edir.
-.pinstall ilə yüklənən pluginlər də avtomatik premium emoji göstərir.
-==================================================
+emoji_utils.py — Premium Emoji dəstəyi (Ryhavean Userbot)
+=========================================================
+Bu modul:
+  • Bütün adi emojiləri Telegram Premium Custom Emoji ID-lərinə çevirir.
+  • TelegramClient (send_message, edit_message, send_file) və
+    Message (respond, reply, edit) metodlarını GLOBAL monkey-patch edir.
+  • .pinstall ilə endirilən pluginlərdə də avtomatik işləyir, çünki
+    patch yalnız hər instansa deyil, **class səviyyəsində** tətbiq olunur.
+  • Custom HTML parser (PremiumHTMLParser) Telethon-un parse_mode
+    məhdudiyyətini aşaraq MessageEntityCustomEmoji generasiya edir.
+
+İstifadə:
+    from emoji_utils import install_premium_emojis
+    install_premium_emojis()        # main.py-də userbot başlamazdan əvvəl
 """
+
+from __future__ import annotations
 import re
 import random
+from html import escape as html_escape
+from html.parser import HTMLParser as _StdHTMLParser
+
 from telethon import TelegramClient
 from telethon.tl.custom import Message
-from telethon.tl.types import (
-    MessageEntityCustomEmoji,
-    MessageEntityTextUrl,
-)
+from telethon.tl.types import MessageEntityCustomEmoji, MessageEntityTextUrl
 from telethon.extensions import html as tl_html
 
-# ============================================================
-# Premium Emoji ID Map (150+ emoji)
-# ============================================================
-PREMIUM_EMOJI_MAP = {
-    # Music / Audio
+# ──────────────────────────────────────────────────────────────────────────
+# 1. EMOJI → PREMIUM ID xəritəsi
+# ──────────────────────────────────────────────────────────────────────────
+PREMIUM_EMOJI_MAP: dict[str, int] = {
+    # ✅ / ❌ / ⚠️
+    "✅": 5237699328843200968,
+    "❌": 5210956306952758910,
+    "⚠️": 5260683494091866126,
+    "⛔": 5237946060664813722,
+    "🚫": 5237755760383408500,
+    # ⭐ / 🌟 / ✨
+    "⭐": 5269174946921015998,
+    "🌟": 5260573582032744451,
+    "✨": 5267389078512345863,
+    "💫": 5260533238362068636,
+    # 🔥 / 💥 / ⚡
+    "🔥": 5260575112617681492,
+    "💥": 5260745285577883628,
+    "⚡": 5263946349224909046,
+    # 🎵 / 🎶 / 🎧 / 🎤 / 🎼
     "🎵": 5244489483159609086,
     "🎶": 5411371652921435502,
     "🎧": 5363988860747400777,
-    "🎤": 5188534946971357056,
-    "🎼": 5247200526806083584,
-    "🎷": 5224774246105601256,
-    "🎸": 5188377706580342082,
-    "🥁": 5224774246105601256,
-    # Status / Actions
-    "✅": 5237699328843200968,
-    "❌": 5237803726629079638,
-    "⚠️": 5237794650988008052,
-    "ℹ️": 5237926954068725838,
-    "✔": 5237699328843200968,
-    "❎": 5237803726629079638,
-    "⛔": 5237803726629079638,
-    "🚫": 5237803726629079638,
-    "🆗": 5237699328843200968,
-    "🆘": 5237803726629079638,
-    # Hearts
-    "❤️": 5237800551539573619,
-    "💖": 5237800551539573619,
-    "💕": 5237800551539573619,
-    "💗": 5237800551539573619,
-    "💓": 5237800551539573619,
-    "💝": 5237800551539573619,
-    "💘": 5237800551539573619,
-    "🧡": 5237800551539573619,
-    "💛": 5237800551539573619,
-    "💚": 5237800551539573619,
-    "💙": 5237800551539573619,
-    "💜": 5237800551539573619,
-    "🖤": 5237800551539573619,
-    "🤍": 5237800551539573619,
-    "🤎": 5237800551539573619,
-    # Faces
-    "😀": 5404870795943391909,
-    "😁": 5404870795943391909,
-    "😂": 5443055575834826266,
-    "🤣": 5443055575834826266,
-    "😃": 5404870795943391909,
-    "😄": 5404870795943391909,
-    "😅": 5404870795943391909,
-    "😆": 5404870795943391909,
-    "😉": 5404870795943391909,
-    "😊": 5404870795943391909,
-    "😍": 5237800551539573619,
-    "🥰": 5237800551539573619,
-    "😎": 5188377706580342082,
-    "🤩": 5237800551539573619,
-    "🥳": 5237800551539573619,
-    "😢": 5237794650988008052,
-    "😭": 5237794650988008052,
-    "😡": 5237803726629079638,
-    "🤬": 5237803726629079638,
-    "🥶": 5237794650988008052,
-    "😱": 5237803726629079638,
-    "🤔": 5237926954068725838,
-    "🙄": 5237926954068725838,
-    "😴": 5404870795943391909,
-    "😈": 5237803726629079638,
-    "👿": 5237803726629079638,
-    "👻": 5237794650988008052,
-    "💀": 5237803726629079638,
-    "☠️": 5237803726629079638,
-    "🤖": 5188377706580342082,
-    "👽": 5188377706580342082,
-    "👾": 5188377706580342082,
-    # Hands & people
-    "👍": 5237699328843200968,
-    "👎": 5237803726629079638,
-    "👏": 5237699328843200968,
-    "🙌": 5237699328843200968,
-    "🤝": 5237699328843200968,
-    "💪": 5237699328843200968,
-    "🙏": 5237926954068725838,
-    "✊": 5237699328843200968,
-    "👊": 5237699328843200968,
-    "✌️": 5237699328843200968,
-    "🤞": 5237699328843200968,
-    "🤟": 5237699328843200968,
-    "🤘": 5237699328843200968,
-    "👌": 5237699328843200968,
-    "👋": 5237699328843200968,
-    # Symbols
-    "⭐": 5188534946971357056,
-    "🌟": 5188534946971357056,
-    "✨": 5188534946971357056,
-    "💫": 5188534946971357056,
-    "🔥": 5443055575834826266,
-    "💧": 5188377706580342082,
-    "💦": 5188377706580342082,
-    "☀️": 5188534946971357056,
-    "🌙": 5247200526806083584,
-    "⚡": 5443055575834826266,
-    "❄️": 5188377706580342082,
-    "🌈": 5188534946971357056,
-    "☁️": 5247200526806083584,
-    # Objects / Tools
-    "💎": 5188534946971357056,
-    "👑": 5188534946971357056,
-    "🎁": 5237800551539573619,
-    "🎉": 5237699328843200968,
-    "🎊": 5237699328843200968,
-    "🎈": 5237699328843200968,
-    "💰": 5188534946971357056,
-    "💵": 5188534946971357056,
-    "💸": 5188534946971357056,
-    "💳": 5188534946971357056,
-    "🪙": 5188534946971357056,
-    # Tech / Comm
-    "📱": 5188377706580342082,
-    "💻": 5188377706580342082,
-    "⌨️": 5188377706580342082,
-    "🖥️": 5188377706580342082,
-    "🖱️": 5188377706580342082,
-    "📷": 5188377706580342082,
-    "📸": 5188377706580342082,
-    "🎥": 5188377706580342082,
-    "📹": 5188377706580342082,
-    "📺": 5188377706580342082,
-    "📡": 5188377706580342082,
-    "🔋": 5188377706580342082,
-    "🔌": 5188377706580342082,
-    "📞": 5188377706580342082,
-    "☎️": 5188377706580342082,
-    "📧": 5188377706580342082,
-    "📨": 5188377706580342082,
-    "📩": 5188377706580342082,
-    "📬": 5188377706580342082,
-    "📮": 5188377706580342082,
-    # Navigation
-    "➡️": 5188377706580342082,
-    "⬅️": 5188377706580342082,
-    "⬆️": 5188377706580342082,
-    "⬇️": 5188377706580342082,
-    "↗️": 5188377706580342082,
-    "↘️": 5188377706580342082,
-    "↙️": 5188377706580342082,
-    "↖️": 5188377706580342082,
-    "🔄": 5188377706580342082,
-    "🔁": 5188377706580342082,
-    "🔂": 5188377706580342082,
-    # Tools / Settings
-    "⚙️": 5188377706580342082,
-    "🛠️": 5188377706580342082,
-    "🔧": 5188377706580342082,
-    "🔨": 5188377706580342082,
-    "🔒": 5188377706580342082,
-    "🔓": 5188377706580342082,
-    "🔑": 5188377706580342082,
-    "🗝️": 5188377706580342082,
-    # Files / Docs
-    "📁": 5188377706580342082,
-    "📂": 5188377706580342082,
-    "📄": 5188377706580342082,
-    "📃": 5188377706580342082,
-    "📑": 5188377706580342082,
-    "📊": 5188377706580342082,
-    "📈": 5188377706580342082,
-    "📉": 5188377706580342082,
-    "🗂️": 5188377706580342082,
-    "📋": 5188377706580342082,
-    "📝": 5188377706580342082,
-    "✏️": 5188377706580342082,
-    "🖊️": 5188377706580342082,
-    "🖋️": 5188377706580342082,
-    # Misc
-    "🌍": 5188377706580342082,
-    "🌎": 5188377706580342082,
-    "🌏": 5188377706580342082,
-    "🗺️": 5188377706580342082,
-    "🧭": 5188377706580342082,
-    "⏰": 5188377706580342082,
-    "⏱️": 5188377706580342082,
-    "⏲️": 5188377706580342082,
-    "🕐": 5188377706580342082,
-    "📅": 5188377706580342082,
-    "📆": 5188377706580342082,
-    "🗓️": 5188377706580342082,
+    "🎤": 5260628176856953568,
+    "🎼": 5267389078512345863,
+    # ❤️ / 💙 / 💚 / 💛 / 🧡 / 💜 / 🖤 / 🤍 / 🤎 / ♥️
+    "❤️": 5237677599715337115,
+    "♥️": 5237677599715337115,
+    "💙": 5237762629171183910,
+    "💚": 5237753341991182236,
+    "💛": 5237699557408022762,
+    "🧡": 5237764602494801471,
+    "💜": 5237699557408022762,
+    "🖤": 5237689247405382669,
+    "🤍": 5237679223947569354,
+    "🤎": 5237750010701706750,
+    "💖": 5237679223947569354,
+    "💗": 5237679223947569354,
+    "💘": 5237679223947569354,
+    "💕": 5237699557408022762,
+    "💞": 5237679223947569354,
+    # 👍 / 👎 / 👌 / 👏 / 🙌 / 🤝 / ✊ / ✋ / 🤙 / 🫶
+    "👍": 5269174946921015998,
+    "👎": 5210956306952758910,
+    "👌": 5237753341991182236,
+    "👏": 5237699557408022762,
+    "🙌": 5237699557408022762,
+    "🤝": 5237699557408022762,
+    "✊": 5260575112617681492,
+    "✋": 5237677599715337115,
+    "🤙": 5237677599715337115,
+    "🫶": 5237679223947569354,
+    # 😀 😁 😂 🤣 😃 😄 😅 😆 😉 😊 😋
+    "😀": 5260573582032744451,
+    "😁": 5260573582032744451,
+    "😂": 5260628176856953568,
+    "🤣": 5260628176856953568,
+    "😃": 5260573582032744451,
+    "😄": 5260573582032744451,
+    "😅": 5260573582032744451,
+    "😆": 5260628176856953568,
+    "😉": 5260573582032744451,
+    "😊": 5260573582032744451,
+    "😋": 5260573582032744451,
+    # 😎 😍 🥰 😘 😗 😙 😚 🙂 🤗 🤩
+    "😎": 5260573582032744451,
+    "😍": 5237679223947569354,
+    "🥰": 5237679223947569354,
+    "😘": 5237679223947569354,
+    "🤩": 5269174946921015998,
+    "🤗": 5260573582032744451,
+    # 🤔 🤨 😐 😑 😶 🙄 😏 😣 😥 😮 🤐 😯 😪 😫 🥱 😴
+    "🤔": 5260628176856953568,
+    "🤨": 5260628176856953568,
+    "😐": 5260628176856953568,
+    "🙄": 5260628176856953568,
+    "😏": 5260628176856953568,
+    "😴": 5260628176856953568,
+    # 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓
+    "😢": 5260628176856953568,
+    "😭": 5260628176856953568,
+    "😡": 5210956306952758910,
+    "🤬": 5210956306952758910,
+    "🤯": 5260745285577883628,
+    "😱": 5260745285577883628,
+    # 🤤 😈 👿 💀 ☠️ 👻 👽 🤖 👾
+    "💀": 5237689247405382669,
+    "👻": 5260573582032744451,
+    "🤖": 5260573582032744451,
+    "👽": 5260573582032744451,
+    # 🌹 🌸 🌺 🌻 🌷 💐 🌼
+    "🌹": 5237677599715337115,
+    "🌸": 5237679223947569354,
+    "🌺": 5237679223947569354,
+    "🌻": 5237699557408022762,
+    "🌷": 5237679223947569354,
+    "💐": 5237679223947569354,
+    # 🎉 🎊 🎁 🎂 🎈 🎀
+    "🎉": 5269174946921015998,
+    "🎊": 5269174946921015998,
+    "🎁": 5237679223947569354,
+    "🎂": 5237679223947569354,
+    "🎈": 5237679223947569354,
+    # 📌 📍 📎 ✏️ ✒️ 🖊️ 🖋️ 📝 📄 📃 📑 📊 📈 📉
+    "📌": 5260575112617681492,
+    "📝": 5260628176856953568,
+    "📊": 5260628176856953568,
+    "📈": 5237753341991182236,
+    "📉": 5210956306952758910,
+    # 🔔 🔕 📢 📣 📯 🔊 🔉 🔈 🔇
+    "🔔": 5260628176856953568,
+    "🔕": 5260628176856953568,
+    "📢": 5260628176856953568,
+    # 🔒 🔓 🔐 🔑 🗝️
+    "🔒": 5260575112617681492,
+    "🔓": 5237753341991182236,
+    "🔑": 5269174946921015998,
+    # 🛠️ ⚙️ 🔧 🔨 ⛏️ 🪓 🔩 🧰
+    "🛠️": 5260628176856953568,
+    "⚙️": 5260628176856953568,
+    "🔧": 5260628176856953568,
+    # 🤖 / bot / dev
+    "💻": 5260628176856953568,
+    "🖥️": 5260628176856953568,
+    "📱": 5260628176856953568,
+    "⌨️": 5260628176856953568,
+    "🖱️": 5260628176856953568,
+    # arrows
+    "➡️": 5260628176856953568,
+    "⬅️": 5260628176856953568,
+    "⬆️": 5260628176856953568,
+    "⬇️": 5260628176856953568,
+    "↗️": 5260628176856953568,
+    "↘️": 5260628176856953568,
+    "🔄": 5260628176856953568,
+    "🔃": 5260628176856953568,
+    "▶️": 5237753341991182236,
+    "◀️": 5237753341991182236,
+    "⏸️": 5260628176856953568,
+    "⏹️": 5210956306952758910,
+    # i/info
+    "ℹ️": 5260628176856953568,
+    "❓": 5260628176856953568,
+    "❔": 5260628176856953568,
+    "❕": 5260628176856953568,
+    "‼️": 5210956306952758910,
+    "⁉️": 5260628176856953568,
+    # ⏳ ⌛ ⏰ ⏱️ ⏲️ 🕐
+    "⏳": 5260628176856953568,
+    "⌛": 5260628176856953568,
+    "⏰": 5260628176856953568,
+    # 🌍 🌎 🌏 🌐 🗺️
+    "🌍": 5260628176856953568,
+    "🌎": 5260628176856953568,
+    "🌏": 5260628176856953568,
+    "🌐": 5260628176856953568,
+    # weather
+    "☀️": 5269174946921015998,
+    "🌙": 5260628176856953568,
+    "☁️": 5260628176856953568,
+    "🌧️": 5260628176856953568,
+    "⛅": 5260628176856953568,
+    # food / drink
+    "☕": 5260628176856953568,
+    "🍺": 5260628176856953568,
+    "🍻": 5260628176856953568,
+    # misc
+    "📸": 5260628176856953568,
+    "📷": 5260628176856953568,
+    "🎬": 5260628176856953568,
+    "🎮": 5260628176856953568,
+    "🎯": 5260575112617681492,
+    "🏆": 5269174946921015998,
+    "🥇": 5269174946921015998,
+    "🥈": 5260628176856953568,
+    "🥉": 5237750010701706750,
+    "💎": 5237762629171183910,
+    "💰": 5237699557408022762,
+    "💵": 5237753341991182236,
+    "💸": 5237753341991182236,
+    "🛒": 5260628176856953568,
 }
 
-# .song üçün random premium emoji ID'lər
+# .song üçün xüsusi premium emoji ID-ləri (random seçilir)
 SONG_PREMIUM_EMOJI_IDS = [
-    5244489483159609086,  # 🎵
-    5411371652921435502,  # 🎶
-    5363988860747400777,  # 🎧
+    5244489483159609086,
+    5411371652921435502,
+    5363988860747400777,
 ]
-SONG_EMOJI_CHAR = ["🎵", "🎶", "🎧"]
+
+def get_random_song_emoji_id() -> int:
+    """`.song` üçün random premium emoji ID qaytarır."""
+    return random.choice(SONG_PREMIUM_EMOJI_IDS)
+
+def song_caption() -> str:
+    """`.song` üçün caption HTML qaytarır — random premium emoji + 'Ryhavean Download'."""
+    eid = get_random_song_emoji_id()
+    # 🎵 yer tutucu — Telethon parser onu MessageEntityCustomEmoji-yə çevirəcək
+    return f'<emoji id="{eid}">🎵</emoji> <b>Ryhavean Download</b>'
 
 
-# ============================================================
-# Premium Emoji konvertasiya alqoritmi
-# ============================================================
-def _build_premium_text_and_entities(text: str):
+# ──────────────────────────────────────────────────────────────────────────
+# 2. Premium HTML Parser (Telethon parse_mode replacement)
+# ──────────────────────────────────────────────────────────────────────────
+_EMOJI_TAG_RE = re.compile(
+    r'<emoji\s+id\s*=\s*["\']?(\d+)["\']?\s*>(.*?)</emoji>',
+    re.IGNORECASE | re.DOTALL,
+)
+
+class PremiumHTMLParser:
     """
-    Mətndəki standart emojiləri tapır və MessageEntityCustomEmoji entity'ləri yaradır.
-    Telegram'a göndərilərkən premium emoji kimi göstərilir.
+    Telethon parse_mode interface — `<emoji id="...">X</emoji>` taglarını
+    MessageEntityCustomEmoji-yə çevirir.
+
+    İşləmə prinsipi:
+      1. `<emoji id=N>X</emoji>` → `<a href="tg://emoji?id=N">X</a>`
+      2. Standart Telethon HTML parseri MessageEntityTextUrl üretir
+      3. `tg://emoji?id=N` URL-li entity-lər MessageEntityCustomEmoji-yə çevrilir
     """
-    if not text:
-        return text, []
 
-    entities = []
-    # Regex: bütün məlumatdakı emojiləri (uzunluq görə sıralanmış) tap
-    sorted_emojis = sorted(PREMIUM_EMOJI_MAP.keys(), key=len, reverse=True)
-    pattern = "|".join(re.escape(e) for e in sorted_emojis)
-    if not pattern:
-        return text, []
+    @staticmethod
+    def parse(text: str):
+        if not text:
+            return text, []
 
-    # UTF-16 offset hesablamaq üçün
-    utf16_text = text.encode("utf-16-le")
+        # <emoji id=N>X</emoji> → <a href="tg://emoji?id=N">X</a>
+        def _to_anchor(m):
+            eid = m.group(1)
+            inner = m.group(2)
+            return f'<a href="tg://emoji?id={eid}">{inner}</a>'
 
-    def utf16_len(s):
-        return len(s.encode("utf-16-le")) // 2
+        converted = _EMOJI_TAG_RE.sub(_to_anchor, text)
 
-    new_entities = []
-    for m in re.finditer(pattern, text):
-        emoji_char = m.group(0)
-        emoji_id = PREMIUM_EMOJI_MAP.get(emoji_char)
-        if not emoji_id:
-            continue
-        offset = utf16_len(text[: m.start()])
-        length = utf16_len(emoji_char)
-        new_entities.append(
-            MessageEntityCustomEmoji(
-                offset=offset,
-                length=length,
-                document_id=emoji_id,
-            )
-        )
+        # Telethon-un standart HTML parserindən istifadə
+        msg, entities = tl_html.parse(converted)
 
-    return text, new_entities
+        # MessageEntityTextUrl(tg://emoji?id=N) → MessageEntityCustomEmoji
+        new_entities = []
+        for e in entities:
+            if isinstance(e, MessageEntityTextUrl) and e.url.startswith("tg://emoji?id="):
+                try:
+                    eid = int(e.url.split("=", 1)[1])
+                    new_entities.append(MessageEntityCustomEmoji(
+                        offset=e.offset, length=e.length, document_id=eid
+                    ))
+                    continue
+                except (ValueError, IndexError):
+                    pass
+            new_entities.append(e)
+
+        return msg, new_entities
+
+    @staticmethod
+    def unparse(text: str, entities):
+        if not entities:
+            return tl_html.unparse(text, entities)
+
+        # CustomEmoji → anchor (Telethon unparse onları emal edə bilsin)
+        converted_entities = []
+        for e in entities:
+            if isinstance(e, MessageEntityCustomEmoji):
+                converted_entities.append(MessageEntityTextUrl(
+                    offset=e.offset, length=e.length,
+                    url=f"tg://emoji?id={e.document_id}",
+                ))
+            else:
+                converted_entities.append(e)
+        return tl_html.unparse(text, converted_entities)
 
 
-def apply_premium_emojis(text, existing_entities=None):
-    """Mətn üçün premium emoji entity'lərini hazırlayır."""
-    if not text:
-        return text, existing_entities or []
-    new_text, new_ents = _build_premium_text_and_entities(text)
-    if existing_entities:
-        return new_text, list(existing_entities) + new_ents
-    return new_text, new_ents
-
-
-def song_caption():
+# ──────────────────────────────────────────────────────────────────────────
+# 3. Mətni Premium-laşdırma
+# ──────────────────────────────────────────────────────────────────────────
+def apply_premium_emojis(text: str) -> str:
     """
-    .song mahnı yükləndikdə random premium emoji + 'Ryhavean Download' caption qaytarır.
+    Mətndəki bütün adi emojiləri `<emoji id="...">X</emoji>` tag-ı ilə əvəzləyir.
+    Əgər mətndə artıq `<emoji ...>` tag-ı varsa, ona toxunmur.
     """
-    idx = random.randint(0, len(SONG_PREMIUM_EMOJI_IDS) - 1)
-    emoji_char = SONG_EMOJI_CHAR[idx]
-    emoji_id = SONG_PREMIUM_EMOJI_IDS[idx]
-    text = f"{emoji_char} Ryhavean Download"
-    # UTF-16 offset = 0, length = utf16 emoji ölçüsü
-    length = len(emoji_char.encode("utf-16-le")) // 2
-    entities = [
-        MessageEntityCustomEmoji(
-            offset=0,
-            length=length,
-            document_id=emoji_id,
-        )
-    ]
-    return text, entities
+    if not text or not isinstance(text, str):
+        return text
+
+    # Artıq <emoji> tag-larını qoruyaq — onları placeholder ilə əvəz edib sonda geri qaytarırıq
+    placeholders: list[str] = []
+    def _stash(m):
+        placeholders.append(m.group(0))
+        return f"\x00PREMOJI{len(placeholders)-1}\x00"
+
+    safe = _EMOJI_TAG_RE.sub(_stash, text)
+
+    # Indi adi emojiləri çevirək (uzun-dan qısa, çünki ❤️ kimi multi-codepoint var)
+    for emoji in sorted(PREMIUM_EMOJI_MAP.keys(), key=len, reverse=True):
+        if emoji in safe:
+            eid = PREMIUM_EMOJI_MAP[emoji]
+            safe = safe.replace(emoji, f'<emoji id="{eid}">{emoji}</emoji>')
+
+    # Placeholders-ı geri qaytar
+    def _restore(m):
+        idx = int(m.group(1))
+        return placeholders[idx]
+    safe = re.sub(r"\x00PREMOJI(\d+)\x00", _restore, safe)
+    return safe
 
 
-# ============================================================
-# CLASS-LEVEL MONKEY PATCH
-# .pinstall ilə yüklənən pluginlər də bu patch'dən istifadə edir
-# ============================================================
-_original_send_message = TelegramClient.send_message
-_original_edit_message = TelegramClient.edit_message
-_original_send_file = TelegramClient.send_file
+# ──────────────────────────────────────────────────────────────────────────
+# 4. GLOBAL MONKEY-PATCH (TelegramClient + Message CLASS səviyyəsində)
+# ──────────────────────────────────────────────────────────────────────────
+_PATCHED = False
+
+def install_premium_emojis() -> None:
+    """
+    TelegramClient və Message metodlarını GLOBAL şəkildə patch edir.
+    Bu funksiya userbot başlamazdan ÖNCƏ çağırılmalıdır — bundan sonra
+    .pinstall ilə endirilən bütün pluginlərdə avtomatik işləyəcək, çünki
+    patch class səviyyəsindədir, yeni instance yaratmaq tələb olunmur.
+    """
+    global _PATCHED
+    if _PATCHED:
+        return
+    _PATCHED = True
+
+    _orig_send_message = TelegramClient.send_message
+    _orig_edit_message = TelegramClient.edit_message
+    _orig_send_file = TelegramClient.send_file
+    _orig_msg_respond = Message.respond
+    _orig_msg_reply = Message.reply
+    _orig_msg_edit = Message.edit
+
+    def _inject(kwargs: dict) -> dict:
+        """parse_mode-u PremiumHTMLParser-ə dəyiş və mətni çevir."""
+        # message / text / caption sahələrini emal et
+        for key in ("message", "text", "caption", "file_caption"):
+            if key in kwargs and isinstance(kwargs[key], str):
+                kwargs[key] = apply_premium_emojis(kwargs[key])
+        kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return kwargs
+
+    async def _send_message(self, entity, message=None, **kwargs):
+        if isinstance(message, str):
+            message = apply_premium_emojis(message)
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_send_message(self, entity, message, **kwargs)
+
+    async def _edit_message(self, entity, message=None, text=None, **kwargs):
+        if isinstance(text, str):
+            text = apply_premium_emojis(text)
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_edit_message(self, entity, message, text, **kwargs)
+
+    async def _send_file(self, entity, file, **kwargs):
+        if isinstance(kwargs.get("caption"), str):
+            kwargs["caption"] = apply_premium_emojis(kwargs["caption"])
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_send_file(self, entity, file, **kwargs)
+
+    async def _msg_respond(self, message=None, **kwargs):
+        if isinstance(message, str):
+            message = apply_premium_emojis(message)
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_msg_respond(self, message, **kwargs)
+
+    async def _msg_reply(self, message=None, **kwargs):
+        if isinstance(message, str):
+            message = apply_premium_emojis(message)
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_msg_reply(self, message, **kwargs)
+
+    async def _msg_edit(self, text=None, **kwargs):
+        if isinstance(text, str):
+            text = apply_premium_emojis(text)
+            kwargs.setdefault("parse_mode", PremiumHTMLParser)
+        return await _orig_msg_edit(self, text, **kwargs)
+
+    # CLASS səviyyəsində dəyişdir → bütün gələcək instance-lar (pluginlər daxil)
+    TelegramClient.send_message = _send_message
+    TelegramClient.edit_message = _edit_message
+    TelegramClient.send_file = _send_file
+    Message.respond = _msg_respond
+    Message.reply = _msg_reply
+    Message.edit = _msg_edit
+
+    print("[emoji_utils] ✅ Premium emoji patch tətbiq edildi (global, class-level).")
 
 
-async def _patched_send_message(self, entity, message=None, *args, **kwargs):
-    if isinstance(message, str):
-        new_text, new_ents = apply_premium_emojis(message, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            # parse_mode olmamalıdır ki, entity'lər prioritet alsın
-            kwargs["parse_mode"] = None
-            message = new_text
-    return await _original_send_message(self, entity, message, *args, **kwargs)
-
-
-async def _patched_edit_message(self, entity, message=None, text=None, *args, **kwargs):
-    target_text = text
-    if isinstance(target_text, str):
-        new_text, new_ents = apply_premium_emojis(target_text, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            kwargs["parse_mode"] = None
-            text = new_text
-    return await _original_edit_message(self, entity, message, text, *args, **kwargs)
-
-
-async def _patched_send_file(self, entity, file, *args, **kwargs):
-    caption = kwargs.get("caption")
-    if isinstance(caption, str):
-        new_text, new_ents = apply_premium_emojis(caption, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            kwargs["parse_mode"] = None
-            kwargs["caption"] = new_text
-    return await _original_send_file(self, entity, file, *args, **kwargs)
-
-
-_original_message_edit = Message.edit
-_original_message_respond = Message.respond
-_original_message_reply = Message.reply
-
-
-async def _patched_message_edit(self, text=None, *args, **kwargs):
-    if isinstance(text, str):
-        new_text, new_ents = apply_premium_emojis(text, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            kwargs["parse_mode"] = None
-            text = new_text
-    return await _original_message_edit(self, text, *args, **kwargs)
-
-
-async def _patched_message_respond(self, message=None, *args, **kwargs):
-    if isinstance(message, str):
-        new_text, new_ents = apply_premium_emojis(message, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            kwargs["parse_mode"] = None
-            message = new_text
-    return await _original_message_respond(self, message, *args, **kwargs)
-
-
-async def _patched_message_reply(self, message=None, *args, **kwargs):
-    if isinstance(message, str):
-        new_text, new_ents = apply_premium_emojis(message, kwargs.get("formatting_entities"))
-        if new_ents:
-            kwargs["formatting_entities"] = new_ents
-            kwargs["parse_mode"] = None
-            message = new_text
-    return await _original_message_reply(self, message, *args, **kwargs)
-
-
-def install_patches():
-    """Class-level patch tətbiq edir. main.py'da əvvəlcə çağırılmalıdır."""
-    TelegramClient.send_message = _patched_send_message
-    TelegramClient.edit_message = _patched_edit_message
-    TelegramClient.send_file = _patched_send_file
-    Message.edit = _patched_message_edit
-    Message.respond = _patched_message_respond
-    Message.reply = _patched_message_reply
-
-
-# Avtomatik tətbiq
-install_patches()
+# Avtomatik tətbiq — import edən kimi işə düşür (pluginlər üçün də)
+install_premium_emojis()
