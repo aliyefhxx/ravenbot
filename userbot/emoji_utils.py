@@ -1,20 +1,29 @@
 """
 ==================================================
-💎  EMOJİ SİSTEMİ - RYHAVEAN (PREMIUM AUTO-HOOK v2)
+💎  EMOJİ SİSTEMİ - RYHAVEAN (PREMIUM AUTO-HOOK v3)
 ==================================================
-Genişləndirilmiş premium emoji xəritəsi + bütün
-göndərmə/redaktə metodları üçün monkey-patch.
-Plugin və commands.py-də adi emoji yazsan da
-avtomatik premium emoji ilə əvəzlənir.
+v3 DÜZƏLİŞİ (vacib!):
+Telethon-un standart HTML parser-i <emoji id=...> teqini
+TANIMIR — buna görə əvvəlki versiyada premium emojilər
+göndərilmirdi və adi emoji görünürdü.
 
-QEYD: Premium emojilərin görünməsi üçün userbot
-hesabı TELEGRAM PREMIUM olmalıdır.
+Bu versiyada xüsusi "PremiumHTML" parse mode var:
+<emoji id=NNN>X</emoji> teqi birbaşa
+MessageEntityCustomEmoji entitisinə çevrilir.
+Beləliklə hesab Telegram Premium olduqda emojilər
+100% premium (animasiyalı) görünür.
+
+İstifadə: bu faylı userbot qovluğuna `emoji_utils.py`
+adı ilə qoy (köhnəni əvəz et) və userbotu restart et.
 """
 
 import re
 import logging
+
 from telethon import TelegramClient
 from telethon.tl.custom.message import Message
+from telethon.extensions import html as tl_html
+from telethon.tl.types import MessageEntityTextUrl, MessageEntityCustomEmoji
 
 log = logging.getLogger("emoji_utils")
 
@@ -133,14 +142,18 @@ PREMIUM_EMOJI_MAP = {
 }
 
 _ALREADY_PREMIUM_RE = re.compile(
-    r"<emoji\s+id=\d+>.*?</emoji>", re.IGNORECASE | re.DOTALL
+    r"<emoji\s+id=[\"']?\d+[\"']?>.*?</emoji>", re.IGNORECASE | re.DOTALL
+)
+_EMOJI_TAG_RE = re.compile(
+    r"<emoji\s+id=[\"']?(\d+)[\"']?>(.*?)</emoji>", re.IGNORECASE | re.DOTALL
 )
 
 
 def apply_premium_emojis(text):
+    """Adi emojiləri <emoji id=...> teqi ilə əvəz edir."""
     if not text or not isinstance(text, str):
         return text
-    placeholders: list[str] = []
+    placeholders = []
 
     def _stash(match):
         placeholders.append(match.group(0))
@@ -158,7 +171,7 @@ def apply_premium_emojis(text):
     return re.sub(r"\x00PREMOJI(\d+)\x00", _restore, safe)
 
 
-def vip_format(text: str, auto_bold: bool = True) -> str:
+def vip_format(text, auto_bold=True):
     if not text:
         return text
     result = text
@@ -176,7 +189,69 @@ def vip_format(text: str, auto_bold: bool = True) -> str:
 
 
 # ---------------------------------------------------------------
-# 2) AVTOMATIK MONKEY-PATCH
+# 2) XÜSUSİ PARSE MODE  (ƏSAS DÜZƏLİŞ!)
+# ---------------------------------------------------------------
+# Telethon-un öz HTML parser-i <emoji> teqini bilmir.
+# Trik: <emoji id=N>X</emoji> -> <a href="tg://emoji?id=N">X</a>
+# parse edildikdən sonra TextUrl entitisini
+# MessageEntityCustomEmoji ilə əvəz edirik.
+class PremiumHTMLParser:
+    @staticmethod
+    def parse(text):
+        if not text:
+            return text, []
+        pre = _EMOJI_TAG_RE.sub(
+            lambda m: f'<a href="tg://emoji?id={m.group(1)}">{m.group(2)}</a>',
+            text,
+        )
+        parsed_text, entities = tl_html.parse(pre)
+        new_entities = []
+        for ent in entities or []:
+            if isinstance(ent, MessageEntityTextUrl) and ent.url.startswith("tg://emoji?id="):
+                try:
+                    doc_id = int(ent.url.split("=", 1)[1])
+                    new_entities.append(
+                        MessageEntityCustomEmoji(
+                            offset=ent.offset,
+                            length=ent.length,
+                            document_id=doc_id,
+                        )
+                    )
+                    continue
+                except (ValueError, IndexError):
+                    pass
+            new_entities.append(ent)
+        return parsed_text, new_entities
+
+    @staticmethod
+    def unparse(text, entities):
+        if not entities:
+            return tl_html.unparse(text, entities)
+        converted = []
+        for ent in entities:
+            if isinstance(ent, MessageEntityCustomEmoji):
+                converted.append(
+                    MessageEntityTextUrl(
+                        offset=ent.offset,
+                        length=ent.length,
+                        url=f"tg://emoji?id={ent.document_id}",
+                    )
+                )
+            else:
+                converted.append(ent)
+        out = tl_html.unparse(text, converted)
+        return re.sub(
+            r'<a href="tg://emoji\?id=(\d+)">(.*?)</a>',
+            r"<emoji id=\1>\2</emoji>",
+            out,
+        )
+
+
+PREMIUM_PARSE_MODE = PremiumHTMLParser()
+
+
+# ---------------------------------------------------------------
+# 3) AVTOMATIK MONKEY-PATCH
 # ---------------------------------------------------------------
 _PATCH_FLAG = "_ryhavean_premium_patched"
 
@@ -184,11 +259,11 @@ _PATCH_FLAG = "_ryhavean_premium_patched"
 def _maybe_convert(value):
     if isinstance(value, str):
         new_v = apply_premium_emojis(value)
-        return new_v, new_v != value
+        return new_v, (new_v != value) or ("<emoji" in new_v)
     return value, False
 
 
-def _wrap_client(method, text_kw: str):
+def _wrap_client(method, text_kw):
     async def wrapper(self, *args, **kwargs):
         changed = False
         if text_kw in kwargs and isinstance(kwargs[text_kw], str):
@@ -202,29 +277,28 @@ def _wrap_client(method, text_kw: str):
         # send_message(entity, text) / edit_message(entity, message, text)
         if len(args) >= 2 and isinstance(args[1], str):
             v, c = _maybe_convert(args[1])
-            if c:
-                args = (args[0], v) + tuple(args[2:])
-                changed = True
+            args = (args[0], v) + tuple(args[2:])
+            changed |= c
         elif len(args) >= 3 and isinstance(args[2], str):
             v, c = _maybe_convert(args[2])
-            if c:
-                args = (args[0], args[1], v) + tuple(args[3:])
-                changed = True
-        if changed and "parse_mode" not in kwargs:
-            kwargs["parse_mode"] = "html"
+            args = (args[0], args[1], v) + tuple(args[3:])
+            changed |= c
+        if changed:
+            # VACİB: standart "html" yox, premium parser istifadə olunur
+            kwargs["parse_mode"] = PREMIUM_PARSE_MODE
         return await method(self, *args, **kwargs)
+
     wrapper.__wrapped__ = method
     return wrapper
 
 
-def _wrap_message(method, text_kw: str = "text"):
+def _wrap_message(method, text_kw="text"):
     async def wrapper(self, *args, **kwargs):
         changed = False
         if text_kw in kwargs and isinstance(kwargs[text_kw], str):
             v, c = _maybe_convert(kwargs[text_kw])
             kwargs[text_kw] = v
             changed |= c
-        # bəzi metodlarda message kwarg ilə də gəlir
         if "message" in kwargs and isinstance(kwargs["message"], str):
             v, c = _maybe_convert(kwargs["message"])
             kwargs["message"] = v
@@ -235,12 +309,12 @@ def _wrap_message(method, text_kw: str = "text"):
             changed |= c
         if args and isinstance(args[0], str):
             v, c = _maybe_convert(args[0])
-            if c:
-                args = (v,) + tuple(args[1:])
-                changed = True
-        if changed and "parse_mode" not in kwargs:
-            kwargs["parse_mode"] = "html"
+            args = (v,) + tuple(args[1:])
+            changed |= c
+        if changed:
+            kwargs["parse_mode"] = PREMIUM_PARSE_MODE
         return await method(self, *args, **kwargs)
+
     wrapper.__wrapped__ = method
     return wrapper
 
@@ -258,7 +332,7 @@ def _install_patches():
         Message.respond = _wrap_message(Message.respond, "text")
 
         setattr(TelegramClient, _PATCH_FLAG, True)
-        log.info("💎 Premium emoji auto-patch tətbiq olundu.")
+        log.info("💎 Premium emoji auto-patch (v3, CustomEmoji entity) tətbiq olundu.")
     except Exception as e:
         log.warning("Premium emoji patch tətbiq olunmadı: %s", e)
 
