@@ -1,30 +1,3 @@
-"""
-emoji_utils.py — Premium Emoji dəstəyi (Ryhavean Userbot)
-=========================================================
-Bu modul:
-  • Bütün adi emojiləri Telegram Premium Custom Emoji ID-lərinə çevirir.
-  • TelegramClient (send_message, edit_message, send_file) və
-    Message (respond, reply, edit) metodlarını GLOBAL monkey-patch edir.
-  • .pinstall ilə endirilən pluginlərdə də avtomatik işləyir, çünki
-    patch yalnız hər instansa deyil, **class səviyyəsində** tətbiq olunur.
-  • Custom HTML parser (PremiumHTMLParser) Telethon-un parse_mode
-    məhdudiyyətini aşaraq MessageEntityCustomEmoji generasiya edir.
-
-İstifadə:
-    from emoji_utils import install_premium_emojis
-    install_premium_emojis()        # main.py-də userbot başlamazdan əvvəl
-"""
-# emoji_utils.py
-
-# Bu funksiyanı əlavə edin ki, digər fayllar onu tapa bilsin
-def vip_format(text: str) -> str:
-    # Əgər əsas mesaj göndərmə patch-iniz (monkey patch) artıq varsa, 
-    # bu funksiya sadəcə mətni olduğu kimi qaytarmalıdır.
-    return text 
-
-# Sizin mövcud avtomatik premium emoji patch kodunuz aşağıda qalsın:
-# (Məsələn: client.send_message-i dəyişdiyiniz kod hissəsi)
-
 from __future__ import annotations
 import re
 import random
@@ -35,6 +8,16 @@ from telethon import TelegramClient
 from telethon.tl.custom import Message
 from telethon.tl.types import MessageEntityCustomEmoji, MessageEntityTextUrl
 from telethon.extensions import html as tl_html
+# emoji_utils.py
+
+# Bu funksiyanı əlavə edin ki, digər fayllar onu tapa bilsin
+def vip_format(text: str) -> str:
+    # Əgər əsas mesaj göndərmə patch-iniz (monkey patch) artıq varsa, 
+    # bu funksiya sadəcə mətni olduğu kimi qaytarmalıdır.
+    return text 
+
+# Sizin mövcud avtomatik premium emoji patch kodunuz aşağıda qalsın:
+# (Məsələn: client.send_message-i dəyişdiyiniz kod hissəsi)
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1. EMOJI → PREMIUM ID xəritəsi
