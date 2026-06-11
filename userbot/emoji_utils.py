@@ -1,11 +1,9 @@
 """
 ==================================================
-💎 PREMİUM EMOJİ SİSTEMİ - RYHAVEAN
+💎 PREMİUM EMOJİ SİSTEMİ - RYHAVEAN (DÜZƏLDİLMİŞ)
 ==================================================
-Telegram Premium Custom Emoji mapping sistemi
 """
 
-# Premium Telegram Custom Emoji ID map
 PREMIUM_EMOJI_MAP = {
     "✨": "<emoji id=5316742794562254812>✨</emoji>",
     "✅": "<emoji id=5368741096031552953>✅</emoji>",
@@ -38,58 +36,26 @@ PREMIUM_EMOJI_MAP = {
     "🥷": "<emoji id=5210868290187970813>🥷</emoji>",
 }
 
-
-def to_premium(text: str) -> str:
+def vip_format(text: str, auto_bold: bool = True) -> str:
     """
-    Mətnin içindəki bütün standart emojiləri Premium Telegram emoji ilə əvəz edir.
+    VIP formatı: Əvvəlcə bold edirik, sonra emojiləri əvəz edirik.
+    Bu yolla emojilər <b> tag-lərinin içində qalmayacaq.
+    """
+    result = text
     
-    Args:
-        text: Emoji olan mətn
-        
-    Returns:
-        Premium emoji ilə mətn
-    """
-    for std_emoji, premium_emoji in PREMIUM_EMOJI_MAP.items():
-        text = text.replace(std_emoji, premium_emoji)
-    return text
-
-
-def make_bold(text: str) -> str:
-    """
-    Mətnin hər sətirini qalın (bold) edir.
-    
-    Args:
-        text: Normal mətn
-        
-    Returns:
-        Bold mətn
-    """
-    lines = text.split('\n')
-    bold_lines = []
-    for line in lines:
-        if line.strip():
-            # Əgər artıq <b> tag-ı yoxdursa əlavə et
-            if not line.strip().startswith('<b>'):
+    # 1. Əvvəlcə mətni bold et (əgər lazımdırsa)
+    if auto_bold:
+        lines = result.split('\n')
+        bold_lines = []
+        for line in lines:
+            if line.strip() and not line.strip().startswith('<b>'):
                 bold_lines.append(f"<b>{line}</b>")
             else:
                 bold_lines.append(line)
-        else:
-            bold_lines.append(line)
-    return '\n'.join(bold_lines)
-
-
-def vip_format(text: str, auto_bold: bool = True) -> str:
-    """
-    Mətni VIP formatına çevirir: Premium emoji + Bold
+        result = '\n'.join(bold_lines)
     
-    Args:
-        text: Adi mətn
-        auto_bold: Avtomatik bold et (default: True)
+    # 2. Sonda emojiləri əvəz et (Tag-lərdən kənarda qalacaqlar)
+    for std_emoji, premium_emoji in PREMIUM_EMOJI_MAP.items():
+        result = result.replace(std_emoji, premium_emoji)
         
-    Returns:
-        VIP formatlanmış mətn
-    """
-    result = to_premium(text)
-    if auto_bold:
-        result = make_bold(result)
     return result
