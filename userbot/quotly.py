@@ -20,7 +20,7 @@ except Exception:
     pass
 
 
-def register(bot, CMD_PREFIX="."):
+def register_quotly(bot, CMD_PREFIX="."):
 
     @bot.on(events.NewMessage(pattern=rf"\{CMD_PREFIX}q(?:\s|$)", outgoing=True))
     async def quote_handler(event):
