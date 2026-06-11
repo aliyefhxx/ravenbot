@@ -14,7 +14,7 @@ def register_quotly(client):
         bot_username = "QuotLyBot"
 
         try:
-            # 1. Mesajı bota forward et ki, müəllif adını düzgün alsın
+            # 1.  bota forward et ki, müəllif adını düzgün alsın
             await event.client.forward_messages(bot_username, reply_message)
             
             # 2. Botun cavab verməsini gözlə (bəzən 1-2 saniyə çəkə bilir)
