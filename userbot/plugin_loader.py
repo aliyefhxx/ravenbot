@@ -13,6 +13,7 @@ import asyncio
 from pathlib import Path
 from security import analyze_plugin
 from db import pool
+from emoji_utils import vip_format
 
 log = logging.getLogger("plugins")
 PLUGIN_DIR = Path(__file__).parent / "plugins"
@@ -52,7 +53,7 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
     
     safe, reason = analyze_plugin(processed_code)
     if not safe:
-        return False, f"❌ <b>Təhlükəsizlik xətası (Plugin: <code>{name}</code>):</b> {reason}"
+        return False, vip_format(f"❌ Təhlükəsizlik xətası (Plugin: <code>{name}</code>): {reason}")
     
     path = PLUGIN_DIR / f"{name}.py"
     path.write_text(processed_code, encoding="utf-8")
@@ -61,14 +62,14 @@ async def install_plugin(name: str, code: str, client) -> tuple[bool, str]:
         await _load_one(path, client, notify=False)
     except Exception as e:
         path.unlink(missing_ok=True)
-        return False, f"❌ <b>Yükləmə xətası (Plugin: <code>{name}</code>):</b> {e}"
+        return False, vip_format(f"❌ Yükləmə xətası (Plugin: <code>{name}</code>): {e}")
     
     async with pool().acquire() as c:
         await c.execute(
             "INSERT INTO plugins(name,code) VALUES($1,$2) "
             "ON CONFLICT(name) DO UPDATE SET code=EXCLUDED.code", name, processed_code
         )
-    return True, f"✅ <b>Plugin '<u>{name}</u>' uğurla yükləndi və aktivləşdirildi!</b>"
+    return True, vip_format(f"✅ Plugin '<u>{name}</u>' uğurla yükləndi və aktivləşdirildi!")
 
 async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path = PLUGIN_DIR / f"{name}.py"
@@ -79,7 +80,7 @@ async def uninstall_plugin(name: str) -> tuple[bool, str]:
     path.unlink(missing_ok=True)
     async with pool().acquire() as c:
         await c.execute("DELETE FROM plugins WHERE name=$1", name)
-    return True, f"🗑 <b>Plugin '<u>{name}</u>' sistemdən silindi.</b>"
+    return True, vip_format(f"🗑 Plugin '<u>{name}</u>' sistemdən silindi.")
 
 async def _load_one(path: Path, client, notify=False):
     name = path.stem
@@ -97,7 +98,11 @@ async def _load_one(path: Path, client, notify=False):
         log.error("Plugin xətası %s: %s", name, err)
         if notify:
             try:
-                await client.send_message("me", f"⚠️ <b>Plugin xətası:</b> <code>{name}</code>\n\n<code>{err[:3000]}</code>", parse_mode="html")
+                await client.send_message(
+                    "me",
+                    vip_format(f"⚠️ Plugin xətası: <code>{name}</code>\n\n<code>{err[:3000]}</code>"),
+                    parse_mode="html"
+                )
             except Exception:
                 pass
 
