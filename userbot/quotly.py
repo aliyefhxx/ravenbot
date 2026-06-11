@@ -1,4 +1,4 @@
-from telethon import events, functions, types
+from telethon import events
 
 def register_quotly(client):
 
@@ -15,28 +15,27 @@ def register_quotly(client):
 
         try:
             async with event.client.conversation(bot_username) as conv:
-                # 1. Mesajın orijinal sahibini düzgün göstərmək üçün 
-                # botla söhbəti başladaq (və ya mesajı birbaşa göndərək)
-                await conv.send_message(reply_message)
+                # 1. Mesajı forward edirik (bu zaman orijinal müəllif qorunur)
+                await event.client.forward_messages(bot_username, reply_message)
                 
-                # 2. Botun cavabını (sticker) gözləyirik
-                # timeout-u 15 saniyəyə qaldırdıq ki, gecikmə olsa da xəta verməsin
-                response = await conv.get_response(timeout=15)
+                # 2. Botun mesajı işləməsi üçün 1 saniyə gözləyirik
+                # Botun "Sticker yaranır" və ya bənzəri cavabını tuturuq
+                response = await conv.get_response()
                 
-                # 3. .qs üçün əlavə əmr
+                # 3. .qs əmri üçün
                 if command_type == "qs":
-                    # Botun bizə göndərdiyi ilk mesajın üzərinə /q s yazırıq
+                    # Botun göndərdiyi ilk mesaja (sticker/image) cavab olaraq əmri yazırıq
                     await conv.send_message("/q s", reply_to=response.id)
-                    # Şəkli gözləyirik
-                    response = await conv.get_response(timeout=15)
+                    # İndi botun bizə göndərdiyi şəkli tuturuq
+                    response = await conv.get_response()
                 
-                # 4. Cavabı orijinal mesaja göndəririk
+                # 4. Şəkli/Stikeri orijinal mesaja reply kimi göndəririk
                 await event.client.send_message(
                     event.chat_id,
                     response,
                     reply_to=reply_message.id
                 )
                 
-        except Exception as e:
-            # Xətanın qarşısını almaq üçün burada sessiyanı bitiririk
+        except Exception:
+            # Xəta baş versə belə sessiyanı pass keçirik ki, istifadəçiyə görünməsin
             pass
