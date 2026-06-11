@@ -14,6 +14,16 @@ Bu modul:
     from emoji_utils import install_premium_emojis
     install_premium_emojis()        # main.py-də userbot başlamazdan əvvəl
 """
+# emoji_utils.py
+
+# Bu funksiyanı əlavə edin ki, digər fayllar onu tapa bilsin
+def vip_format(text: str) -> str:
+    # Əgər əsas mesaj göndərmə patch-iniz (monkey patch) artıq varsa, 
+    # bu funksiya sadəcə mətni olduğu kimi qaytarmalıdır.
+    return text 
+
+# Sizin mövcud avtomatik premium emoji patch kodunuz aşağıda qalsın:
+# (Məsələn: client.send_message-i dəyişdiyiniz kod hissəsi)
 
 from __future__ import annotations
 import re
