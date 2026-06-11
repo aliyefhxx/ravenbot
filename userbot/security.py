@@ -23,7 +23,7 @@ def decrypt(token: str) -> str:
 
 # Qadağan olunmuş importlar (sandbox)
 FORBIDDEN_IMPORTS = {
-    "os.system", "subprocess", "socket", "ctypes", "shutil.rmtree",
+    "os.system", "subprocess", "ctypes", "shutil.rmtree",
     "pty", "pickle", "marshal", "importlib.reload",
 }
 FORBIDDEN_NAMES = {"exec", "compile", "__import__"}
