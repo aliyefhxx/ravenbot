@@ -1,205 +1,114 @@
 """
 ==================================================
-🖼  QUOTLY + .SEKIL KOMANDASI - RYHAVEAN (FIXED)
+🌌 Ryhavean Quotly & Sekil Plugin v3
 ==================================================
-.q  / .qs   -> QuotLyBot vasitəsilə stiker düzəldir və
-              ORİJİNAL mesaja CAVAB olaraq göndərir.
-              ("No message was sent previously" xətası
-              həll edildi — conversation əvəzinə event
-              polling istifadə olunur.)
-.sekil ad   -> SEKIL_KANAL kanalından random şəkil çəkir
-              və qanlı/dramatik caption ilə göndərir.
+.q   - reply edilmiş mesajı sticker (quote) edir (QuotLyBot inline)
+.sekil ad - reply edilmiş şəkli local olaraq sticker'a çevirir (PIL)
+==================================================
 """
-
-import random
-import asyncio
+import io
 import logging
-import time
+import asyncio
 from telethon import events
-from telethon.tl.types import MessageMediaPhoto
-
-from emoji_utils import apply_premium_emojis
+from PIL import Image
 
 log = logging.getLogger("quotly")
 
-SEKIL_KANAL = "@ryhavean_pics"
-_PHOTO_CACHE: dict[str, tuple[float, list]] = {}
-_CACHE_TTL = 600
-
-QUOTLY_BOT = "QuotLyBot"
-
-
-def _info(cmd: str, usage: str, desc: str) -> str:
-    return apply_premium_emojis(
-        f"ℹ️ <b>.{cmd}</b> — {desc}\n"
-        f"📖 <b>İstifadə:</b> <code>{usage}</code>"
-    )
+try:
+    from emoji_utils import apply_premium_emojis  # noqa
+except Exception:
+    pass
 
 
-async def _wait_quotly_response(client, bot_id: int, after_ts: float, timeout: int = 25):
-    """
-    QuotLyBot-dan gələn ilk media-lı (stiker/şəkil) mesajı gözləyir.
-    conversation istifadə etmir, ona görə də
-    'No message was sent previously' xətasını verə bilməz.
-    """
-    end = time.time() + timeout
-    last_seen = None
-    while time.time() < end:
+def register(bot, CMD_PREFIX="."):
+
+    @bot.on(events.NewMessage(pattern=rf"\{CMD_PREFIX}q(?:\s|$)", outgoing=True))
+    async def quote_handler(event):
         try:
-            async for m in client.iter_messages(bot_id, limit=5):
-                if m.date.timestamp() < after_ts - 1:
+            if not event.is_reply:
+                await event.edit("❌ Bir mesajı reply edin.")
+                return
+            await event.edit("⏳ Quote hazırlanır...")
+            reply = await event.get_reply_message()
+
+            # QuotLyBot'a forward et
+            await event.client.send_message("QuotLyBot", "/qsend")
+            await asyncio.sleep(1)
+            await event.client.forward_messages("QuotLyBot", reply)
+
+            # Cavabı poll et
+            sticker = None
+            for _ in range(20):
+                await asyncio.sleep(0.5)
+                async for m in event.client.iter_messages("QuotLyBot", limit=3):
+                    if m.sticker and m.date and (not reply.date or m.date >= reply.date):
+                        sticker = m
+                        break
+                if sticker:
                     break
-                if m.media and (m.sticker or m.photo):
-                    return m
-                last_seen = m
-        except Exception as ex:
-            log.debug("iter_messages xətası: %s", ex)
-        await asyncio.sleep(1.2)
-    return last_seen
 
+            if not sticker:
+                await event.edit("❌ Quote alına bilmədi.")
+                return
 
-def register_quotly(client):
-    @client.on(events.NewMessage(outgoing=True, pattern=r"^\.(q|qs)($|\s)"))
-    async def quotly_handler(event):
-        reply_message = await event.get_reply_message()
-        if not reply_message:
+            await event.client.send_file(event.chat_id, sticker.media, reply_to=reply.id)
+            await event.delete()
+        except Exception as e:
+            log.exception(".q xətası")
             try:
-                await event.edit(
-                    _info("q", ".q (mesaja cavab ver)",
-                          "Cavab verdiyin mesajdan stiker / şəkil-quote düzəldir."),
-                    parse_mode="html",
-                )
+                await event.edit(f"❌ Xəta: {e}")
             except Exception:
                 pass
-            return
 
-        command = event.pattern_match.group(1)
-        chat_id = event.chat_id
-        reply_to_id = reply_message.id
-
-        try:
-            await event.delete()
-        except Exception:
-            pass
-
-        try:
-            bot = await client.get_entity(QUOTLY_BOT)
-        except Exception as e:
-            log.warning("QuotLyBot tapılmadı: %s", e)
-            return
-
-        sent_ts = time.time()
-
-        try:
-            await client.forward_messages(bot, reply_message)
-        except Exception as e:
-            log.warning(".q forward xətası: %s", e)
-            return
-
-        final_response = await _wait_quotly_response(client, bot.id, sent_ts, timeout=25)
-
-        if command == "qs" and final_response is not None and final_response.sticker:
-            try:
-                await client.send_message(bot, "/q s", reply_to=final_response.id)
-            except Exception:
-                try:
-                    await client.send_message(bot, "/q s")
-                except Exception:
-                    pass
-            sent_ts2 = time.time()
-            shot = await _wait_quotly_response(client, bot.id, sent_ts2, timeout=20)
-            if shot is not None:
-                final_response = shot
-
-        if not final_response or not final_response.media:
-            log.warning(".q: QuotLyBot cavab vermədi")
-            return
-
-        try:
-            await client.send_file(
-                chat_id,
-                final_response.media,
-                reply_to=reply_to_id,
-            )
-        except Exception as e:
-            log.exception(".q göndərmə xətası: %s", e)
-
-    @client.on(events.NewMessage(outgoing=True, pattern=r"^\.sekil($|\s+(.*))"))
+    @bot.on(events.NewMessage(pattern=rf"\{CMD_PREFIX}sekil(?:\s+(.+))?$", outgoing=True))
     async def sekil_handler(event):
-        ad = (event.pattern_match.group(2) or "").strip() if event.pattern_match.group(2) else ""
-        if not ad:
-            try:
+        try:
+            args = event.pattern_match.group(1)
+            if not event.is_reply:
                 await event.edit(
-                    _info("sekil", ".sekil <ad>",
-                          "Kanaldan random şəkil çəkib qanlı caption ilə göndərir."),
+                    "ℹ️ <b>.sekil &lt;ad&gt;</b>\n"
+                    "Bir şəkli reply edib sticker'a çevirir.\n"
+                    "<b>Misal:</b> .sekil mypack",
                     parse_mode="html",
                 )
+                return
+            reply = await event.get_reply_message()
+            if not (reply and reply.photo):
+                await event.edit("❌ Reply edilən mesaj şəkil deyil.")
+                return
+
+            await event.edit("⏳ Sticker hazırlanır...")
+            buf = io.BytesIO()
+            await reply.download_media(file=buf)
+            buf.seek(0)
+            img = Image.open(buf).convert("RGBA")
+
+            # Sticker 512x512 PNG, ən böyük ölçü 512
+            w, h = img.size
+            if w >= h:
+                new_w = 512
+                new_h = int(h * 512 / w)
+            else:
+                new_h = 512
+                new_w = int(w * 512 / h)
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+
+            out = io.BytesIO()
+            out.name = "sticker.png"
+            img.save(out, "PNG")
+            out.seek(0)
+
+            await event.client.send_file(
+                event.chat_id,
+                out,
+                force_document=False,
+                attributes=None,
+                reply_to=reply.id,
+            )
+            await event.delete()
+        except Exception as e:
+            log.exception(".sekil xətası")
+            try:
+                await event.edit(f"❌ Xəta: {e}")
             except Exception:
                 pass
-            return
-
-        reply_message = await event.get_reply_message()
-        try:
-            await event.delete()
-        except Exception:
-            pass
-
-        photos = await _get_channel_photos(client, SEKIL_KANAL)
-        if not photos:
-            await client.send_message(
-                event.chat_id,
-                apply_premium_emojis(f"❌ <b>{SEKIL_KANAL}</b> kanalından şəkil tapılmadı."),
-                parse_mode="html",
-            )
-            return
-
-        msg = random.choice(photos)
-        caption = _bloody_caption(ad)
-
-        try:
-            await client.send_file(
-                event.chat_id,
-                msg.media,
-                caption=caption,
-                parse_mode="html",
-                reply_to=reply_message.id if reply_message else None,
-            )
-        except Exception as e:
-            log.exception(".sekil göndərmə xətası: %s", e)
-            await client.send_message(
-                event.chat_id,
-                apply_premium_emojis(f"❌ Şəkil göndərilə bilmədi: <code>{e}</code>"),
-                parse_mode="html",
-            )
-
-
-async def _get_channel_photos(client, channel: str, limit: int = 200):
-    now = time.time()
-    cached = _PHOTO_CACHE.get(channel)
-    if cached and now - cached[0] < _CACHE_TTL:
-        return cached[1]
-    try:
-        entity = await client.get_entity(channel)
-    except Exception as e:
-        log.warning("Kanal entity tapılmadı (%s): %s", channel, e)
-        return []
-    photos = []
-    try:
-        async for m in client.iter_messages(entity, limit=limit):
-            if m.media and isinstance(m.media, MessageMediaPhoto):
-                photos.append(m)
-    except Exception as e:
-        log.warning("iter_messages xətası: %s", e)
-        return []
-    _PHOTO_CACHE[channel] = (now, photos)
-    return photos
-
-
-def _bloody_caption(ad: str) -> str:
-    upper = ad.upper()
-    inner = (
-        f"🩸 <b>『 {upper} 』</b> 🩸\n"
-        f"<i>꧁༒ {ad} ༒꧂</i>\n\n"
-        f"<blockquote>💀  𝕽𝖞𝖍𝖆𝖛𝖊𝖆𝖓  🔥</blockquote>"
-    )
-    return apply_premium_emojis(inner)
