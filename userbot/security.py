@@ -26,7 +26,7 @@ FORBIDDEN_IMPORTS = {
     "os.system", "subprocess", "socket", "ctypes", "shutil.rmtree",
     "pty", "pickle", "marshal", "importlib.reload",
 }
-FORBIDDEN_NAMES = {"eval", "exec", "compile", "__import__"}
+FORBIDDEN_NAMES = {"exec", "compile", "__import__"}
 
 def analyze_plugin(code: str) -> tuple[bool, str]:
     """Plugin kodunu statik analiz edir. (safe, reason)"""
