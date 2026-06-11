@@ -1,5 +1,6 @@
 """Ryhavean  - Render Web Service (7/24 self-ping)"""
 import asyncio
+import emoji_utils
 import logging
 import os
 import sys
