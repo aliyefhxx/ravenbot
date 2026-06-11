@@ -12,7 +12,12 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 from config import Config
-import db, ratelimit, plugin_loader, commands, security
+import db
+import ratelimit
+import plugin_loader
+import commands
+import security
+import quotly
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,6 +73,7 @@ async def start_userbot():
     log.info("✅ Daxil oldu: %s (@%s) id=%s", me.first_name, me.username, me.id)
 
     commands.register(tg_client)
+    quotly.register_quotly(tg_client)
     await plugin_loader.load_all(tg_client)
     await post_restart_notice(tg_client)
 
