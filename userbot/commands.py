@@ -95,7 +95,7 @@ def register(client):
     async def help_cmd(event):
         plugins = list(plugin_loader.loaded.keys())
         text = (
-            "📚 Ryhavean Userbot - Yardım Paneli\n"
+            "Ryhavean Userbot 🇬🇪\n"
             "━━━━━━━━━━━━━━━\n"
             "🛡 İdarəetmə:\n"
             "<code>.alive</code> | <code>.dlive</code> | <code>.restart</code>\n\n"
