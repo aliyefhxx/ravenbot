@@ -20,7 +20,6 @@ from config import Config
 from db import pool, get_setting, set_setting
 import ratelimit
 import plugin_loader
-from emoji_utils import vip_format
 
 log = logging.getLogger("cmds")
 P = Config.CMD_PREFIX
@@ -103,11 +102,9 @@ def register(client):
             "🔨 Moderasiya:\n"
             "<code>.ban</code> | <code>.unban</code> | <code>.mute</code> | <code>.block</code> | <code>.unblock</code>\n\n"
             "👤 İstifadəçi & Qrup:\n"
-            "<code>.info</code> | <code>.tag</code> | <code>.setwelcome</code> | <code>.purge</code>\n\n"
+            "<code>.info</code> | <code>.tag</code> | <code>.setwelcome</code>\n\n"
             "🧬 Profil Klonlama:\n"
             "<code>.klon</code> | <code>.unklon</code>\n\n"
-            "🎨 QuotLy Sistemi:\n"
-            "<code>.qs [rəng]</code> | <code>.q</code>\n\n"
             "🔌 Plugin İdarəetmə:\n"
             "<code>.pinstall</code> | <code>.unpinstall</code>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -277,50 +274,8 @@ def register(client):
             mention = f"<a href='tg://user?id={user.id}'>{user.first_name or 'dost'}</a>"
             msg = row["message"].replace("{mention}", mention).replace("{name}", user.first_name or "")
             await event.client.send_message(event.chat_id, msg, parse_mode="html")
-
         except Exception as e:
             log.warning("welcome err: %s", e)
-
-        @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("purge")))
-    async def purge(event):
-        arg = event.pattern_match.group(1).strip()
-        try:
-            me = await event.client.get_me()
-            if event.is_reply:
-                reply = await event.get_reply_message()
-                ids = []
-                async for m in event.client.iter_messages(event.chat_id, min_id=reply.id-1):
-                    ids.append(m.id)
-                count = len(ids)
-            elif arg.isdigit():
-                ids = []
-                async for m in event.client.iter_messages(event.chat_id, limit=int(arg)):
-                    ids.append(m.id)
-                count = len(ids)
-            else:
-                return await edit_safe(event, f"ℹ️ İstifadə: <code>{P}purge 50</code> və ya reply")
-            
-            try:
-                await event.client.delete_messages(event.chat_id, ids)
-                await event.respond(f"🧹 {count} mesaj silindi.", parse_mode="html")
-            except Exception:
-                own = []
-                async for mm in event.client.iter_messages(event.chat_id, limit=200):
-                    if mm.sender_id == me.id:
-                        own.append(mm.id)
-                await event.client.delete_messages(event.chat_id, own)
-                await event.respond(
-                    f"🧹 Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi.",
-                    parse_mode="html"
-                )
-        except Exception as e:
-            await edit_safe(event, f"❌ Xəta: {e}")
-
-
-
-
-        except Exception as e:
-            await edit_safe(event, f"❌ Xəta: {e}")
 
     @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("klon")))
     async def klon(event):
