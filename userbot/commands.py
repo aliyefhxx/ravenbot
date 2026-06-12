@@ -281,7 +281,7 @@ def register(client):
         except Exception as e:
             log.warning("welcome err: %s", e)
 
-    @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("purge")))
+        @client.on(events.NewMessage(outgoing=True, pattern=cmd_re("purge")))
     async def purge(event):
         arg = event.pattern_match.group(1).strip()
         try:
@@ -300,7 +300,7 @@ def register(client):
             else:
                 return await edit_safe(event, f"ℹ️ İstifadə: <code>{P}purge 50</code> və ya reply")
             
-                        try:
+            try:
                 await event.client.delete_messages(event.chat_id, ids)
                 await event.respond(f"🧹 {count} mesaj silindi.", parse_mode="html")
             except Exception:
@@ -313,6 +313,9 @@ def register(client):
                     f"🧹 Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi.",
                     parse_mode="html"
                 )
+        except Exception as e:
+            await edit_safe(event, f"❌ Xəta: {e}")
+
 
 
 
