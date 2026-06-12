@@ -33,9 +33,9 @@ def cmd_re(name: str) -> str:
 
 async def edit_safe(event, text: str):
     try:
-        await event.edit(vip_format(text), parse_mode="html", link_preview=False)
+        await event.edit(text, parse_mode="html", link_preview=False)
     except Exception:
-        await event.respond(vip_format(text), parse_mode="html", link_preview=False)
+        await event.respond(text, parse_mode="html", link_preview=False)
 
 async def rl_check(event, key: str, limit=5, per=10) -> bool:
     ok = await ratelimit.allow(f"{event.sender_id}:{key}", limit, per)
@@ -276,7 +276,8 @@ def register(client):
             user = await event.get_user()
             mention = f"<a href='tg://user?id={user.id}'>{user.first_name or 'dost'}</a>"
             msg = row["message"].replace("{mention}", mention).replace("{name}", user.first_name or "")
-            await event.client.send_message(event.chat_id, vip_format(msg), parse_mode="html")
+            await event.client.send_message(event.chat_id, msg, parse_mode="html")
+
         except Exception as e:
             log.warning("welcome err: %s", e)
 
@@ -299,9 +300,9 @@ def register(client):
             else:
                 return await edit_safe(event, f"ℹ️ İstifadə: <code>{P}purge 50</code> və ya reply")
             
-            try:
+                        try:
                 await event.client.delete_messages(event.chat_id, ids)
-                await event.respond(vip_format(f"🧹 {count} mesaj silindi."), parse_mode="html")
+                await event.respond(f"🧹 {count} mesaj silindi.", parse_mode="html")
             except Exception:
                 own = []
                 async for mm in event.client.iter_messages(event.chat_id, limit=200):
@@ -309,9 +310,12 @@ def register(client):
                         own.append(mm.id)
                 await event.client.delete_messages(event.chat_id, own)
                 await event.respond(
-                    vip_format(f"🧹 Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi."),
+                    f"🧹 Yetkim yoxdur, yalnız öz {len(own)} mesajım silindi.",
                     parse_mode="html"
                 )
+
+
+
         except Exception as e:
             await edit_safe(event, f"❌ Xəta: {e}")
 
