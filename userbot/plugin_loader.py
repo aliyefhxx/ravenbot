@@ -130,8 +130,19 @@ async def _load_one(path: Path, client, notify=False):
     
     try:
         spec.loader.exec_module(mod)
+        
+        # ƏLAVƏ ETDİYİNİZ HİSSƏ BURADIR:
+        if hasattr(mod, "register"):
+            try:
+                mod.register(client)
+                log.info(f"Plugin register() ilə aktivləşdirildi: {name}")
+            except Exception as e:
+                log.error(f"Plugin register() xətası {name}: {e}")
+        
+        # Mövcud sətir:
         loaded[name] = mod
         log.info(f"Plugin uğurla yükləndi: {name}")
+
     except Exception as e:
         err = traceback.format_exc()
         log.error(f"Plugin xətası {name}: {err}")
