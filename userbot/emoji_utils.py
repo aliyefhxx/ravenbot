@@ -25,6 +25,7 @@ from telethon.extensions import html as tl_html
 PREMIUM_EMOJI_MAP = {
     # Music / Audio
     "👥": 4942888689131848546,
+    "💬": 5296258510684712098,
     "♻️": 5377584064326804458,
     "🗑": 5372825386591732174,
     "🎮": 5319247469165433798,
